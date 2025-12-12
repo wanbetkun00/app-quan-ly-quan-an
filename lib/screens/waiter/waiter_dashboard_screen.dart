@@ -6,6 +6,7 @@ import '../../providers/language_provider.dart';
 import '../../providers/app_strings.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/ordering_sheet.dart';
+import '../../widgets/payment_dialog.dart';
 import '../../utils/vnd_format.dart';
 import 'package:intl/intl.dart';
 
@@ -265,9 +266,13 @@ class _WaiterDashboardScreenState extends State<WaiterDashboardScreen> {
             ? () {
                 _showOrderingSheet(context, table);
               }
-            : () {
-                _showTableDetails(context, table, currentOrder, provider);
-              },
+            : table.status == TableStatus.paymentPending
+                ? () {
+                    _showPaymentDialog(context, table, provider);
+                  }
+                : () {
+                    _showTableDetails(context, table, currentOrder, provider);
+                  },
         borderRadius: BorderRadius.circular(16),
         child: Container(
           decoration: BoxDecoration(
@@ -383,6 +388,69 @@ class _WaiterDashboardScreenState extends State<WaiterDashboardScreen> {
       backgroundColor: Colors.transparent,
       builder: (ctx) => OrderingSheet(tableId: table.id),
     );
+  }
+
+  void _showPaymentDialog(
+    BuildContext context,
+    TableModel table,
+    RestaurantProvider provider,
+  ) async {
+    // Show loading
+    if (!context.mounted) return;
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => const Center(
+        child: CircularProgressIndicator(),
+      ),
+    );
+
+    try {
+      // Get completed orders for this table
+      final orders = await provider.getCompletedOrdersForTable(table.id);
+
+      if (!context.mounted) return;
+      
+      // Close loading dialog
+      Navigator.pop(context);
+      
+      if (orders.isEmpty) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Không có đơn hàng nào để thanh toán'),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+        return;
+      }
+
+      // Show payment dialog
+      if (context.mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: true,
+          builder: (dialogContext) => PaymentDialog(
+            table: table,
+            orders: orders,
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        Navigator.pop(context); // Close loading
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi khi tải đơn hàng: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
   }
 
   void _showTableDetails(

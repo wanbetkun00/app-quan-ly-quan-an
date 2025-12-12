@@ -236,6 +236,46 @@ class FirestoreService {
     return null;
   }
 
+  // Get completed orders for a table - requires menu
+  Future<List<OrderModel>> getCompletedOrdersForTable(int tableId, List<MenuItem> menu) async {
+    try {
+      // Query without orderBy first to avoid index requirement
+      final snapshot = await _firestore
+          .collection(ordersCollection)
+          .where('tableId', isEqualTo: tableId)
+          .where('status', isEqualTo: 'completed')
+          .get();
+      
+      final orders = snapshot.docs
+          .map((doc) => _orderFromFirestore(doc.id, doc.data(), menu))
+          .toList();
+      
+      // Sort manually by timestamp
+      orders.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+      
+      return orders;
+    } catch (e) {
+      // If error, try without status filter
+      try {
+        final snapshot = await _firestore
+            .collection(ordersCollection)
+            .where('tableId', isEqualTo: tableId)
+            .get();
+        
+        final orders = snapshot.docs
+            .map((doc) => _orderFromFirestore(doc.id, doc.data(), menu))
+            .where((order) => order.status == OrderStatus.completed)
+            .toList();
+        
+        orders.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+        
+        return orders;
+      } catch (e2) {
+        return [];
+      }
+    }
+  }
+
   // Convert OrderModel to Firestore Map
   Map<String, dynamic> _orderToFirestore(OrderModel order) {
     return {

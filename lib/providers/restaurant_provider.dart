@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/models.dart';
 import '../theme/app_theme.dart';
 import '../services/firestore_service.dart';
+import '../widgets/payment_dialog.dart';
 import 'dart:async';
 
 class RestaurantProvider extends ChangeNotifier {
@@ -250,6 +251,49 @@ class RestaurantProvider extends ChangeNotifier {
       return true;
     } catch (e) {
       _errorMessage = 'Lỗi khi cập nhật trạng thái đơn hàng: $e';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // Get completed orders for a table (for payment)
+  Future<List<OrderModel>> getCompletedOrdersForTable(int tableId) async {
+    try {
+      return await _firestoreService.getCompletedOrdersForTable(tableId, menu);
+    } catch (e) {
+      _errorMessage = 'Lỗi khi lấy danh sách đơn hàng: $e';
+      notifyListeners();
+      return [];
+    }
+  }
+
+  // Process payment for a table
+  Future<bool> processPayment(
+    int tableId,
+    double totalAmount,
+    double discountPercent,
+    PaymentMethod paymentMethod,
+  ) async {
+    try {
+      final tableIndex = tables.indexWhere((t) => t.id == tableId);
+      if (tableIndex == -1) {
+        _errorMessage = 'Không tìm thấy bàn';
+        notifyListeners();
+        return false;
+      }
+
+      // Update table status to available
+      tables[tableIndex].status = TableStatus.available;
+      tables[tableIndex].currentOrderId = null;
+      
+      await _firestoreService.updateTable(tables[tableIndex]);
+      
+      // Force refresh tables to ensure UI updates immediately
+      await _refreshTables();
+      
+      return true;
+    } catch (e) {
+      _errorMessage = 'Lỗi khi xử lý thanh toán: $e';
       notifyListeners();
       return false;
     }
