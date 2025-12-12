@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 import 'providers/restaurant_provider.dart';
 import 'providers/language_provider.dart';
 import 'providers/app_strings.dart';
@@ -8,7 +10,11 @@ import 'screens/waiter/waiter_dashboard_screen.dart';
 import 'screens/kitchen/kitchen_display_screen.dart';
 import 'screens/manager/manager_dashboard_screen.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
   runApp(
     MultiProvider(
       providers: [

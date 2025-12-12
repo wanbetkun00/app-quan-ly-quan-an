@@ -17,7 +17,7 @@ class AppTheme {
     colorScheme: ColorScheme.fromSeed(
       seedColor: primaryOrange,
       primary: primaryOrange,
-      background: lightGreyBg,
+      surface: lightGreyBg,
     ),
     scaffoldBackgroundColor: lightGreyBg,
     appBarTheme: const AppBarTheme(

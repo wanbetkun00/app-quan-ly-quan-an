@@ -144,7 +144,7 @@ class _OrderingSheetState extends State<OrderingSheet>
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 10,
             offset: const Offset(0, -5),
           ),
@@ -192,15 +192,21 @@ class _OrderingSheetState extends State<OrderingSheet>
           ElevatedButton(
             onPressed: draftItems.isEmpty
                 ? null
-                : () {
-                    provider.placeOrder(widget.tableId, draftItems);
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(context.strings.orderSentSnack),
-                        backgroundColor: AppTheme.statusGreen,
-                      ),
-                    );
+                : () async {
+                    final success = await provider.placeOrder(widget.tableId, draftItems);
+                    if (context.mounted) {
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(success 
+                              ? context.strings.orderSentSnack
+                              : 'Lỗi khi gửi đơn hàng'),
+                          backgroundColor: success 
+                              ? AppTheme.statusGreen 
+                              : AppTheme.statusRed,
+                        ),
+                      );
+                    }
                   },
             style: ElevatedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 16),
