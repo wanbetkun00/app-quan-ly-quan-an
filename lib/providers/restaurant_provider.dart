@@ -148,13 +148,16 @@ class RestaurantProvider extends ChangeNotifier {
       // Generate order ID from timestamp
       final orderId = DateTime.now().millisecondsSinceEpoch;
       
+      // Create order with explicit pending status
       final newOrder = OrderModel(
         id: orderId,
         tableId: tableId,
         timestamp: DateTime.now(),
         items: items,
+        status: OrderStatus.pending, // Explicitly set status
       );
       
+      // Save order to Firestore
       await _firestoreService.addOrder(newOrder);
       
       // Update table status appropriately
@@ -165,7 +168,12 @@ class RestaurantProvider extends ChangeNotifier {
         await _firestoreService.updateTable(tables[tableIndex]);
       }
       
-      // Force refresh orders and tables to ensure UI updates immediately
+      // Add order to local list immediately for instant UI update
+      activeOrders.insert(0, newOrder);
+      notifyListeners();
+      
+      // Force refresh orders and tables from Firestore to ensure consistency
+      // The stream will also update automatically, but this ensures immediate UI update
       await Future.wait([
         _refreshOrders(),
         _refreshTables(),
@@ -191,24 +199,16 @@ class RestaurantProvider extends ChangeNotifier {
     OrderModel order = activeOrders[orderIndex];
     OrderStatus newStatus;
 
+    // Determine new status
     if (order.status == OrderStatus.pending) {
       newStatus = OrderStatus.cooking;
     } else if (order.status == OrderStatus.cooking) {
       newStatus = OrderStatus.readyToServe;
     } else if (order.status == OrderStatus.readyToServe) {
       newStatus = OrderStatus.completed;
-      // Make table ready for payment
-      final tableIndex = tables.indexWhere((t) => t.id == order.tableId);
-      if (tableIndex != -1) {
-        tables[tableIndex].status = TableStatus.paymentPending;
-        try {
-          await _firestoreService.updateTable(tables[tableIndex]);
-        } catch (e) {
-          _errorMessage = 'Lỗi khi cập nhật trạng thái bàn: $e';
-          notifyListeners();
-        }
-      }
     } else {
+      _errorMessage = 'Không thể cập nhật trạng thái từ ${order.status.name}';
+      notifyListeners();
       return false;
     }
 
@@ -216,21 +216,38 @@ class RestaurantProvider extends ChangeNotifier {
       // Find the document ID for this order
       final orderDocId = await _firestoreService.findOrderDocumentId(orderId);
       
-      if (orderDocId != null) {
-        await _firestoreService.updateOrderStatus(orderDocId, newStatus);
-        
-        // Force refresh orders and tables to ensure UI updates immediately
-        await Future.wait([
-          _refreshOrders(),
-          _refreshTables(),
-        ]);
-        
-        return true;
-      } else {
+      if (orderDocId == null) {
         _errorMessage = 'Không tìm thấy document của đơn hàng';
         notifyListeners();
         return false;
       }
+
+      // Update status in Firestore
+      await _firestoreService.updateOrderStatus(orderDocId, newStatus);
+      
+      // Update local state immediately for instant UI feedback
+      activeOrders[orderIndex].status = newStatus;
+      
+      // If order is completed, update table status
+      if (newStatus == OrderStatus.completed) {
+        final tableIndex = tables.indexWhere((t) => t.id == order.tableId);
+        if (tableIndex != -1) {
+          tables[tableIndex].status = TableStatus.paymentPending;
+          await _firestoreService.updateTable(tables[tableIndex]);
+        }
+      }
+      
+      // Notify listeners immediately for instant UI update
+      notifyListeners();
+      
+      // Force refresh from Firestore to ensure consistency
+      // This will also update the stream listener
+      await Future.wait([
+        _refreshOrders(),
+        _refreshTables(),
+      ]);
+      
+      return true;
     } catch (e) {
       _errorMessage = 'Lỗi khi cập nhật trạng thái đơn hàng: $e';
       notifyListeners();
