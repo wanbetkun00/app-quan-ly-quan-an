@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/models.dart';
+import '../models/report_model.dart';
+import '../models/shift_model.dart';
 import '../theme/app_theme.dart';
 import '../services/firestore_service.dart';
 import '../widgets/payment_dialog.dart';
@@ -488,6 +490,238 @@ class RestaurantProvider extends ChangeNotifier {
       notifyListeners();
     } catch (e) {
       // Silent fail - stream will handle updates
+    }
+  }
+
+  // ========== REPORTS ==========
+
+  // Generate report for a specific type (latest period)
+  Future<ReportModel> generateReport(ReportType type) async {
+    final now = DateTime.now();
+    DateTime startDate;
+
+    switch (type) {
+      case ReportType.weekly:
+        // Get start of week (Monday)
+        final weekday = now.weekday;
+        startDate = DateTime(now.year, now.month, now.day - (weekday - 1));
+        break;
+      case ReportType.monthly:
+        startDate = DateTime(now.year, now.month, 1);
+        break;
+      case ReportType.yearly:
+        startDate = DateTime(now.year, 1, 1);
+        break;
+    }
+
+    return await generateReportForDate(type, startDate);
+  }
+
+  // Generate report for a specific date
+  Future<ReportModel> generateReportForDate(ReportType type, DateTime date) async {
+    DateTime startDate;
+    DateTime endDate;
+
+    switch (type) {
+      case ReportType.weekly:
+        // Get start of week (Monday)
+        final weekday = date.weekday;
+        startDate = DateTime(date.year, date.month, date.day - (weekday - 1));
+        endDate = DateTime(date.year, date.month, date.day - (weekday - 1) + 6, 23, 59, 59);
+        break;
+      case ReportType.monthly:
+        startDate = DateTime(date.year, date.month, 1);
+        endDate = DateTime(date.year, date.month + 1, 0, 23, 59, 59);
+        break;
+      case ReportType.yearly:
+        startDate = DateTime(date.year, 1, 1);
+        endDate = DateTime(date.year, 12, 31, 23, 59, 59);
+        break;
+    }
+
+    // Get completed orders in range
+    final orders = await _firestoreService.getCompletedOrdersInRange(
+      startDate,
+      endDate,
+      menu,
+    );
+
+    // Calculate statistics
+    double totalRevenue = 0.0;
+    final Map<String, int> itemSales = {}; // menuItemId -> quantity
+    final Map<String, double> itemRevenue = {}; // menuItemId -> revenue
+
+    for (var order in orders) {
+      totalRevenue += order.total;
+      
+      for (var orderItem in order.items) {
+        final itemId = orderItem.menuItem.id.toString();
+        final quantity = orderItem.quantity;
+        final revenue = orderItem.menuItem.price * quantity;
+
+        itemSales[itemId] = (itemSales[itemId] ?? 0) + quantity;
+        itemRevenue[itemId] = (itemRevenue[itemId] ?? 0.0) + revenue;
+      }
+    }
+
+    // Create report model
+    final report = ReportModel(
+      id: '', // Will be set when saved
+      type: type,
+      startDate: startDate,
+      endDate: endDate,
+      totalRevenue: totalRevenue,
+      totalOrders: orders.length,
+      itemSales: itemSales,
+      itemRevenue: itemRevenue,
+    );
+
+    return report;
+  }
+
+  // Save report to Firestore
+  Future<bool> saveReport(ReportModel report) async {
+    try {
+      await _firestoreService.saveReport(report);
+      return true;
+    } catch (e) {
+      _errorMessage = 'Lỗi khi lưu báo cáo: $e';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // Get saved reports
+  Future<List<ReportModel>> getSavedReports(ReportType type, {int limit = 30}) async {
+    try {
+      return await _firestoreService.getReports(type, limit: limit);
+    } catch (e) {
+      _errorMessage = 'Lỗi khi lấy báo cáo: $e';
+      notifyListeners();
+      return [];
+    }
+  }
+
+  // ========== SHIFTS ==========
+
+  // Demo employees list (có thể mở rộng để lấy từ Firebase)
+  List<Map<String, String>> get employees => [
+        {'id': 'staff', 'name': 'Nhân viên phục vụ'},
+        {'id': 'nv001', 'name': 'Nguyễn Văn A'},
+        {'id': 'nv002', 'name': 'Trần Thị B'},
+        {'id': 'nv003', 'name': 'Lê Văn C'},
+      ];
+
+  // Get shifts stream
+  Stream<List<ShiftModel>> getShiftsStream() {
+    return _firestoreService.getShiftsStream();
+  }
+
+  // Get all shifts (once)
+  Future<List<ShiftModel>> getShifts() async {
+    try {
+      return await _firestoreService.getShifts();
+    } catch (e) {
+      _errorMessage = 'Lỗi khi lấy ca làm: $e';
+      notifyListeners();
+      return [];
+    }
+  }
+
+  // Refresh shifts
+  Future<void> refreshShifts() async {
+    // Stream will automatically update
+    notifyListeners();
+  }
+
+  // Add shift
+  Future<bool> addShift(ShiftModel shift) async {
+    try {
+      await _firestoreService.addShift(shift);
+      return true;
+    } catch (e) {
+      _errorMessage = 'Lỗi khi thêm ca làm: $e';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // Update shift
+  Future<bool> updateShift(ShiftModel shift) async {
+    try {
+      await _firestoreService.updateShift(shift);
+      return true;
+    } catch (e) {
+      _errorMessage = 'Lỗi khi cập nhật ca làm: $e';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // Delete shift
+  Future<bool> deleteShift(String shiftId) async {
+    try {
+      await _firestoreService.deleteShift(shiftId);
+      return true;
+    } catch (e) {
+      _errorMessage = 'Lỗi khi xóa ca làm: $e';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // Get shifts for employee
+  Future<List<ShiftModel>> getShiftsForEmployee(String employeeId) async {
+    try {
+      return await _firestoreService.getShiftsForEmployee(employeeId);
+    } catch (e) {
+      _errorMessage = 'Lỗi khi lấy ca làm: $e';
+      notifyListeners();
+      return [];
+    }
+  }
+
+  // Get shifts in current week for employee
+  Future<List<ShiftModel>> getCurrentWeekShiftsForEmployee(String employeeId) async {
+    try {
+      final now = DateTime.now();
+      final weekday = now.weekday;
+      final weekStart = now.subtract(Duration(days: weekday - 1));
+      final weekEnd = weekStart.add(const Duration(days: 6));
+      
+      final allShifts = await _firestoreService.getShiftsForEmployee(employeeId);
+      return allShifts.where((shift) {
+        final shiftDate = DateTime(shift.date.year, shift.date.month, shift.date.day);
+        return shiftDate.isAfter(weekStart.subtract(const Duration(days: 1))) &&
+               shiftDate.isBefore(weekEnd.add(const Duration(days: 1)));
+      }).toList();
+    } catch (e) {
+      _errorMessage = 'Lỗi khi lấy ca làm: $e';
+      notifyListeners();
+      return [];
+    }
+  }
+
+  // Check for overlapping shifts
+  Future<List<ShiftModel>> checkOverlappingShifts(
+    String employeeId,
+    DateTime date,
+    TimeOfDay startTime,
+    TimeOfDay endTime,
+    {String? excludeShiftId}
+  ) async {
+    try {
+      return await _firestoreService.checkOverlappingShifts(
+        employeeId,
+        date,
+        startTime,
+        endTime,
+        excludeShiftId: excludeShiftId,
+      );
+    } catch (e) {
+      _errorMessage = 'Lỗi khi kiểm tra ca làm trùng: $e';
+      notifyListeners();
+      return [];
     }
   }
 }

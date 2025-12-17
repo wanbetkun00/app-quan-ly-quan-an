@@ -6,3 +6,7 @@ enum MenuCategory { food, drink }
 
 enum AppLanguage { en, vi }
 
+enum UserRole { staff, manager }
+
+enum ShiftStatus { scheduled, completed, cancelled }
+

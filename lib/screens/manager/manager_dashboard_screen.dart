@@ -9,6 +9,8 @@ import '../../theme/app_theme.dart';
 import '../../utils/vnd_format.dart';
 import '../../widgets/add_menu_item_dialog.dart';
 import '../../widgets/add_table_dialog.dart';
+import 'reports_screen.dart';
+import 'shift_management_screen.dart';
 
 class ManagerDashboardScreen extends StatelessWidget {
   const ManagerDashboardScreen({super.key});
@@ -19,7 +21,7 @@ class ManagerDashboardScreen extends StatelessWidget {
     final langProvider = Provider.of<LanguageProvider>(context);
 
     return DefaultTabController(
-      length: 3,
+      length: 5,
       child: Scaffold(
         appBar: AppBar(
           title: Text(context.strings.managerTitle),
@@ -35,10 +37,13 @@ class ManagerDashboardScreen extends StatelessWidget {
           bottom: TabBar(
             labelColor: AppTheme.primaryOrange,
             indicatorColor: AppTheme.primaryOrange,
+            isScrollable: true,
             tabs: [
               Tab(text: context.strings.mgrTabDashboard),
               Tab(text: context.strings.mgrTabMenu),
               const Tab(text: 'Quản lý bàn'),
+              const Tab(text: 'Báo cáo'),
+              const Tab(text: 'Ca làm'),
             ],
           ),
         ),
@@ -482,6 +487,12 @@ class ManagerDashboardScreen extends StatelessWidget {
                 );
               },
             ),
+
+            // 4. Reports Tab
+            const ReportsScreen(),
+
+            // 5. Shift Management Tab
+            const ShiftManagementScreen(),
           ],
         ),
       ),

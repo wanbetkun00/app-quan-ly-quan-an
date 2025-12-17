@@ -1,5 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
 import '../models/models.dart';
+import '../models/report_model.dart';
+import '../models/shift_model.dart';
 
 class FirestoreService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -8,6 +11,8 @@ class FirestoreService {
   static const String menuCollection = 'menu';
   static const String tablesCollection = 'tables';
   static const String ordersCollection = 'orders';
+  static const String reportsCollection = 'reports';
+  static const String shiftsCollection = 'shifts';
 
   // ========== MENU ITEMS ==========
   
@@ -324,6 +329,292 @@ class FirestoreService {
       ),
       items: items,
     );
+  }
+
+  // ========== REPORTS ==========
+  
+  // Get completed orders within date range
+  Future<List<OrderModel>> getCompletedOrdersInRange(
+    DateTime startDate,
+    DateTime endDate,
+    List<MenuItem> menu,
+  ) async {
+    try {
+      final startTimestamp = Timestamp.fromDate(startDate);
+      final endTimestamp = Timestamp.fromDate(endDate);
+      
+      final snapshot = await _firestore
+          .collection(ordersCollection)
+          .where('status', isEqualTo: 'completed')
+          .where('timestamp', isGreaterThanOrEqualTo: startTimestamp)
+          .where('timestamp', isLessThanOrEqualTo: endTimestamp)
+          .get();
+      
+      final orders = snapshot.docs
+          .map((doc) => _orderFromFirestore(doc.id, doc.data(), menu))
+          .toList();
+      
+      orders.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+      return orders;
+    } catch (e) {
+      // Fallback: get all completed orders and filter manually
+      try {
+        final snapshot = await _firestore
+            .collection(ordersCollection)
+            .where('status', isEqualTo: 'completed')
+            .get();
+        
+        final allOrders = snapshot.docs
+            .map((doc) => _orderFromFirestore(doc.id, doc.data(), menu))
+            .toList();
+        
+        final filteredOrders = allOrders.where((order) {
+          return order.timestamp.isAfter(startDate.subtract(const Duration(days: 1))) &&
+                 order.timestamp.isBefore(endDate.add(const Duration(days: 1)));
+        }).toList();
+        
+        filteredOrders.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+        return filteredOrders;
+      } catch (e2) {
+        return [];
+      }
+    }
+  }
+
+  // Save report to Firestore
+  Future<String> saveReport(ReportModel report) async {
+    final docRef = await _firestore
+        .collection(reportsCollection)
+        .add(report.toFirestore());
+    return docRef.id;
+  }
+
+  // Get reports by type
+  Future<List<ReportModel>> getReports(ReportType type, {int limit = 30}) async {
+    try {
+      final snapshot = await _firestore
+          .collection(reportsCollection)
+          .where('type', isEqualTo: type.name)
+          .orderBy('createdAt', descending: true)
+          .limit(limit)
+          .get();
+      
+      return snapshot.docs
+          .map((doc) => ReportModel.fromFirestore(doc.id, doc.data()))
+          .toList();
+    } catch (e) {
+      // If error (maybe no index), get all and filter manually
+      try {
+        final snapshot = await _firestore
+            .collection(reportsCollection)
+            .orderBy('createdAt', descending: true)
+            .limit(limit * 2)
+            .get();
+        
+        final allReports = snapshot.docs
+            .map((doc) => ReportModel.fromFirestore(doc.id, doc.data()))
+            .where((report) => report.type == type)
+            .take(limit)
+            .toList();
+        
+        return allReports;
+      } catch (e2) {
+        return [];
+      }
+    }
+  }
+
+  // Get latest report by type
+  Future<ReportModel?> getLatestReport(ReportType type) async {
+    try {
+      final reports = await getReports(type, limit: 1);
+      return reports.isNotEmpty ? reports.first : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // ========== SHIFTS ==========
+  
+  // Stream all shifts
+  Stream<List<ShiftModel>> getShiftsStream() {
+    return _firestore
+        .collection(shiftsCollection)
+        .orderBy('date', descending: false)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => ShiftModel.fromFirestore(doc.id, doc.data()))
+            .toList());
+  }
+
+  // Get shifts once
+  Future<List<ShiftModel>> getShifts() async {
+    try {
+      final snapshot = await _firestore
+          .collection(shiftsCollection)
+          .orderBy('date', descending: false)
+          .get();
+      return snapshot.docs
+          .map((doc) => ShiftModel.fromFirestore(doc.id, doc.data()))
+          .toList();
+    } catch (e) {
+      return [];
+    }
+  }
+
+  // Get shifts for a specific employee
+  Future<List<ShiftModel>> getShiftsForEmployee(String employeeId) async {
+    try {
+      final snapshot = await _firestore
+          .collection(shiftsCollection)
+          .where('employeeId', isEqualTo: employeeId)
+          .orderBy('date', descending: false)
+          .get();
+      return snapshot.docs
+          .map((doc) => ShiftModel.fromFirestore(doc.id, doc.data()))
+          .toList();
+    } catch (e) {
+      // Fallback: get all and filter
+      try {
+        final allShifts = await getShifts();
+        return allShifts.where((shift) => shift.employeeId == employeeId).toList();
+      } catch (e2) {
+        return [];
+      }
+    }
+  }
+
+  // Get shifts in date range
+  Future<List<ShiftModel>> getShiftsInRange(DateTime startDate, DateTime endDate) async {
+    try {
+      final startTimestamp = Timestamp.fromDate(startDate);
+      final endTimestamp = Timestamp.fromDate(endDate);
+      
+      final snapshot = await _firestore
+          .collection(shiftsCollection)
+          .where('date', isGreaterThanOrEqualTo: startTimestamp)
+          .where('date', isLessThanOrEqualTo: endTimestamp)
+          .orderBy('date', descending: false)
+          .get();
+      
+      return snapshot.docs
+          .map((doc) => ShiftModel.fromFirestore(doc.id, doc.data()))
+          .toList();
+    } catch (e) {
+      // Fallback: get all and filter
+      try {
+        final allShifts = await getShifts();
+        return allShifts.where((shift) {
+          return shift.date.isAfter(startDate.subtract(const Duration(days: 1))) &&
+                 shift.date.isBefore(endDate.add(const Duration(days: 1)));
+        }).toList();
+      } catch (e2) {
+        return [];
+      }
+    }
+  }
+
+  // Add shift
+  Future<String> addShift(ShiftModel shift) async {
+    final docRef = await _firestore
+        .collection(shiftsCollection)
+        .add(shift.toFirestore());
+    return docRef.id;
+  }
+
+  // Update shift
+  Future<void> updateShift(ShiftModel shift) async {
+    await _firestore
+        .collection(shiftsCollection)
+        .doc(shift.id)
+        .update(shift.toFirestore());
+  }
+
+  // Delete shift
+  Future<void> deleteShift(String shiftId) async {
+    await _firestore
+        .collection(shiftsCollection)
+        .doc(shiftId)
+        .delete();
+  }
+
+  // Check for overlapping shifts for an employee on a specific date
+  Future<List<ShiftModel>> checkOverlappingShifts(
+    String employeeId,
+    DateTime date,
+    TimeOfDay startTime,
+    TimeOfDay endTime,
+    {String? excludeShiftId}
+  ) async {
+    try {
+      // Get all shifts for this employee on this date
+      final dateStart = DateTime(date.year, date.month, date.day);
+      final dateEnd = DateTime(date.year, date.month, date.day, 23, 59, 59);
+      
+      final snapshot = await _firestore
+          .collection(shiftsCollection)
+          .where('employeeId', isEqualTo: employeeId)
+          .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(dateStart))
+          .where('date', isLessThanOrEqualTo: Timestamp.fromDate(dateEnd))
+          .get();
+      
+      final shifts = snapshot.docs
+          .map((doc) => ShiftModel.fromFirestore(doc.id, doc.data()))
+          .where((shift) => excludeShiftId == null || shift.id != excludeShiftId)
+          .toList();
+      
+      // Filter shifts that overlap with the given time range
+      final overlappingShifts = shifts.where((shift) {
+        return _isTimeOverlapping(
+          startTime,
+          endTime,
+          shift.startTime,
+          shift.endTime,
+        );
+      }).toList();
+      
+      return overlappingShifts;
+    } catch (e) {
+      // Fallback: get all and filter manually
+      try {
+        final allShifts = await getShiftsForEmployee(employeeId);
+        final sameDateShifts = allShifts.where((shift) {
+          final shiftDate = DateTime(shift.date.year, shift.date.month, shift.date.day);
+          final checkDate = DateTime(date.year, date.month, date.day);
+          return shiftDate.isAtSameMomentAs(checkDate) &&
+                 (excludeShiftId == null || shift.id != excludeShiftId);
+        }).toList();
+        
+        return sameDateShifts.where((shift) {
+          return _isTimeOverlapping(
+            startTime,
+            endTime,
+            shift.startTime,
+            shift.endTime,
+          );
+        }).toList();
+      } catch (e2) {
+        return [];
+      }
+    }
+  }
+
+  // Helper method to check if two time ranges overlap
+  bool _isTimeOverlapping(
+    TimeOfDay start1,
+    TimeOfDay end1,
+    TimeOfDay start2,
+    TimeOfDay end2,
+  ) {
+    // Convert to minutes for easier comparison
+    final start1Minutes = start1.hour * 60 + start1.minute;
+    final end1Minutes = end1.hour * 60 + end1.minute;
+    final start2Minutes = start2.hour * 60 + start2.minute;
+    final end2Minutes = end2.hour * 60 + end2.minute;
+    
+    // Check if time ranges overlap
+    // Two ranges overlap if: start1 < end2 && start2 < end1
+    return start1Minutes < end2Minutes && start2Minutes < end1Minutes;
   }
 
 }

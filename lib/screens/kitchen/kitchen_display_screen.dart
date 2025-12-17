@@ -6,6 +6,7 @@ import '../../providers/language_provider.dart';
 import '../../providers/app_strings.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/vnd_format.dart';
+import '../../widgets/animated_card.dart';
 import 'dart:io';
 
 class KitchenDisplayScreen extends StatefulWidget {
@@ -77,10 +78,13 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
                           ),
                           itemCount: filteredOrders.length,
                           itemBuilder: (context, index) {
-                            return _buildOrderCard(
-                              context,
-                              filteredOrders[index],
-                              provider,
+                            return AnimatedCard(
+                              delay: Duration(milliseconds: index * 50),
+                              child: _buildOrderCard(
+                                context,
+                                filteredOrders[index],
+                                provider,
+                              ),
                             );
                           },
                         ),

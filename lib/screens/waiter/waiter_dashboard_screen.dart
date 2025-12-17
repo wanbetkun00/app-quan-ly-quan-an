@@ -7,8 +7,10 @@ import '../../providers/app_strings.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/ordering_sheet.dart';
 import '../../widgets/payment_dialog.dart';
+import '../../widgets/animated_card.dart';
 import '../../utils/vnd_format.dart';
 import 'package:intl/intl.dart';
+import 'shift_view_screen.dart';
 
 class WaiterDashboardScreen extends StatefulWidget {
   const WaiterDashboardScreen({super.key});
@@ -47,6 +49,16 @@ class _WaiterDashboardScreenState extends State<WaiterDashboardScreen> {
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.calendar_today),
+            tooltip: 'Ca làm của tôi',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const ShiftViewScreen()),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Làm mới',
@@ -184,7 +196,10 @@ class _WaiterDashboardScreenState extends State<WaiterDashboardScreen> {
                           itemCount: filteredTables.length,
                           itemBuilder: (context, index) {
                             final table = filteredTables[index];
-                            return _buildTableCard(context, table, provider);
+                            return AnimatedCard(
+                              delay: Duration(milliseconds: index * 50),
+                              child: _buildTableCard(context, table, provider),
+                            );
                           },
                         ),
                       ),
