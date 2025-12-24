@@ -7,6 +7,7 @@ import 'providers/language_provider.dart';
 import 'providers/app_strings.dart';
 import 'providers/auth_provider.dart';
 import 'theme/app_theme.dart';
+import 'widgets/tka_logo.dart';
 import 'screens/waiter/waiter_dashboard_screen.dart';
 import 'screens/kitchen/kitchen_display_screen.dart';
 import 'screens/manager/manager_dashboard_screen.dart';
@@ -106,7 +107,7 @@ class _MainNavigationScaffoldState extends State<MainNavigationScaffold>
     if (widget.role == UserRole.staff) {
       return Scaffold(
         appBar: AppBar(
-          title: Text(strings.appTitle),
+          title: const TkaLogo(fontSize: 20),
           actions: [
             TextButton.icon(
               onPressed: () {
@@ -124,7 +125,7 @@ class _MainNavigationScaffoldState extends State<MainNavigationScaffold>
     // Nếu là quản lý, hiển thị đầy đủ với bottom navigation
     return Scaffold(
       appBar: AppBar(
-        title: Text(strings.appTitle),
+        title: const TkaLogo(fontSize: 20),
         actions: [
           TextButton.icon(
             onPressed: () {

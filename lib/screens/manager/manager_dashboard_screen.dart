@@ -161,44 +161,6 @@ class ManagerDashboardScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 24),
                         
-                        // Order Status Breakdown
-                        Text(
-                          'Trạng thái đơn hàng',
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _buildStatusCard(
-                                context,
-                                'Chờ xử lý',
-                                "${provider.pendingOrders}",
-                                AppTheme.statusRed,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: _buildStatusCard(
-                                context,
-                                'Đang nấu',
-                                "${provider.cookingOrders}",
-                                AppTheme.statusYellow,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: _buildStatusCard(
-                                context,
-                                'Sẵn sàng',
-                                "${provider.readyOrders}",
-                                AppTheme.statusGreen,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 24),
-                        
                         // Best Selling Items
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -551,43 +513,6 @@ class ManagerDashboardScreen extends StatelessWidget {
     );
   }
   
-  Widget _buildStatusCard(
-    BuildContext context,
-    String title,
-    String value,
-    Color color,
-  ) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
-      ),
-      child: Column(
-        children: [
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 11,
-              color: Colors.grey[700],
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildLocalImage(String path) {
     try {
       final file = File(path);

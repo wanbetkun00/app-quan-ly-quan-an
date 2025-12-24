@@ -20,7 +20,6 @@ class WaiterDashboardScreen extends StatefulWidget {
 }
 
 class _WaiterDashboardScreenState extends State<WaiterDashboardScreen> {
-  String _searchQuery = '';
   TableStatus? _statusFilter;
 
   @override
@@ -28,13 +27,8 @@ class _WaiterDashboardScreenState extends State<WaiterDashboardScreen> {
     final provider = Provider.of<RestaurantProvider>(context);
     final langProvider = Provider.of<LanguageProvider>(context);
 
-    // Filter tables
+    // Filter tables by status
     var filteredTables = provider.tables;
-    if (_searchQuery.isNotEmpty) {
-      filteredTables = filteredTables
-          .where((t) => t.name.toLowerCase().contains(_searchQuery.toLowerCase()))
-          .toList();
-    }
     if (_statusFilter != null) {
       filteredTables = filteredTables
           .where((t) => t.status == _statusFilter)
@@ -55,7 +49,9 @@ class _WaiterDashboardScreenState extends State<WaiterDashboardScreen> {
             onPressed: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const ShiftViewScreen()),
+                MaterialPageRoute(
+                  builder: (context) => const ShiftViewScreen(),
+                ),
               );
             },
           ),
@@ -71,7 +67,10 @@ class _WaiterDashboardScreenState extends State<WaiterDashboardScreen> {
                 onPressed: langProvider.toggleLanguage,
                 style: TextButton.styleFrom(
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                 ),
                 child: Text(
                   langProvider.languageCode.toUpperCase(),
@@ -87,56 +86,26 @@ class _WaiterDashboardScreenState extends State<WaiterDashboardScreen> {
       ),
       body: Column(
         children: [
-          // Search and Filter Bar
+          // Filter Bar
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             color: Colors.white,
-            child: Column(
-              children: [
-                // Search field
-                TextField(
-                  decoration: InputDecoration(
-                    hintText: 'Tìm kiếm bàn...',
-                    prefixIcon: const Icon(Icons.search),
-                    suffixIcon: _searchQuery.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(Icons.clear),
-                            onPressed: () {
-                              setState(() {
-                                _searchQuery = '';
-                              });
-                            },
-                          )
-                        : null,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    filled: true,
-                    fillColor: AppTheme.lightGreyBg,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _buildFilterChip('Tất cả', null),
+                  const SizedBox(width: 8),
+                  _buildFilterChip('Trống', TableStatus.available),
+                  const SizedBox(width: 8),
+                  _buildFilterChip('Đang dùng', TableStatus.occupied),
+                  const SizedBox(width: 8),
+                  _buildFilterChip(
+                    'Chờ thanh toán',
+                    TableStatus.paymentPending,
                   ),
-                  onChanged: (value) {
-                    setState(() {
-                      _searchQuery = value;
-                    });
-                  },
-                ),
-                const SizedBox(height: 12),
-                // Status filter chips
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      _buildFilterChip('Tất cả', null),
-                      const SizedBox(width: 8),
-                      _buildFilterChip('Trống', TableStatus.available),
-                      const SizedBox(width: 8),
-                      _buildFilterChip('Đang dùng', TableStatus.occupied),
-                      const SizedBox(width: 8),
-                      _buildFilterChip('Chờ thanh toán', TableStatus.paymentPending),
-                    ],
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
 
@@ -161,48 +130,47 @@ class _WaiterDashboardScreenState extends State<WaiterDashboardScreen> {
             child: provider.isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : filteredTables.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.table_restaurant_outlined,
-                              size: 64,
-                              color: Colors.grey[400],
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              _searchQuery.isNotEmpty
-                                  ? 'Không tìm thấy bàn nào'
-                                  : 'Chưa có bàn nào',
-                              style: TextStyle(
-                                fontSize: 16,
-                                color: Colors.grey[600],
-                              ),
-                            ),
-                          ],
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.table_restaurant_outlined,
+                          size: 64,
+                          color: Colors.grey[400],
                         ),
-                      )
-                    : RefreshIndicator(
-                        onRefresh: () => provider.refreshData(),
-                        child: GridView.builder(
-                          padding: const EdgeInsets.all(16),
-                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2,
-                            crossAxisSpacing: 16,
-                            mainAxisSpacing: 16,
-                            childAspectRatio: 0.85,
+                        const SizedBox(height: 16),
+                        Text(
+                          'Chưa có bàn nào',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey[600],
                           ),
-                          itemCount: filteredTables.length,
-                          itemBuilder: (context, index) {
-                            final table = filteredTables[index];
-                            return AnimatedCard(
-                              delay: Duration(milliseconds: index * 50),
-                              child: _buildTableCard(context, table, provider),
-                            );
-                          },
                         ),
-                      ),
+                      ],
+                    ),
+                  )
+                : RefreshIndicator(
+                    onRefresh: () => provider.refreshData(),
+                    child: GridView.builder(
+                      padding: const EdgeInsets.all(12),
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 3,
+                            crossAxisSpacing: 12,
+                            mainAxisSpacing: 12,
+                            childAspectRatio: 0.75,
+                          ),
+                      itemCount: filteredTables.length,
+                      itemBuilder: (context, index) {
+                        final table = filteredTables[index];
+                        return AnimatedCard(
+                          delay: Duration(milliseconds: index * 50),
+                          child: _buildTableCard(context, table, provider),
+                        );
+                      },
+                    ),
+                  ),
           ),
         ],
       ),
@@ -235,19 +203,10 @@ class _WaiterDashboardScreenState extends State<WaiterDashboardScreen> {
         Container(
           width: 16,
           height: 16,
-          decoration: BoxDecoration(
-            color: color,
-            shape: BoxShape.circle,
-          ),
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
         const SizedBox(width: 6),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            color: Colors.grey[700],
-          ),
-        ),
+        Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[700])),
       ],
     );
   }
@@ -259,7 +218,7 @@ class _WaiterDashboardScreenState extends State<WaiterDashboardScreen> {
   ) {
     final statusColor = provider.getTableColor(table.status);
     final isAvailable = table.status == TableStatus.available;
-    
+
     // Find current order if exists
     OrderModel? currentOrder;
     if (table.currentOrderId != null) {
@@ -282,83 +241,94 @@ class _WaiterDashboardScreenState extends State<WaiterDashboardScreen> {
                 _showOrderingSheet(context, table);
               }
             : table.status == TableStatus.paymentPending
-                ? () {
-                    _showPaymentDialog(context, table, provider);
-                  }
-                : () {
-                    _showTableDetails(context, table, currentOrder, provider);
-                  },
+            ? () {
+                _showPaymentDialog(context, table, provider);
+              }
+            : () {
+                _showTableDetails(context, table, currentOrder, provider);
+              },
         borderRadius: BorderRadius.circular(16),
         child: Container(
           decoration: BoxDecoration(
-            border: Border.all(
-              color: statusColor,
-              width: 3,
-            ),
+            border: Border.all(color: statusColor, width: 3),
             borderRadius: BorderRadius.circular(16),
           ),
           child: Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(8),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 // Table icon
                 Icon(
                   isAvailable ? Icons.table_restaurant : Icons.restaurant,
-                  size: 48,
+                  size: 36,
                   color: statusColor,
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 // Table name
                 Text(
                   table.name,
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.darkGreyText,
-                      ),
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.darkGreyText,
+                    fontSize: 14,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 4),
                 // Status badge
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
                     color: statusColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
                     _getStatusText(table.status),
                     style: TextStyle(
                       color: statusColor,
-                      fontSize: 11,
+                      fontSize: 9,
                       fontWeight: FontWeight.bold,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
                 // Order info if exists
                 if (currentOrder != null) ...[
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 6),
                   Container(
-                    padding: const EdgeInsets.all(6),
+                    padding: const EdgeInsets.all(4),
                     decoration: BoxDecoration(
                       color: Colors.blue.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Column(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
                           'Đơn #${currentOrder.id.toString().substring(currentOrder.id.toString().length - 4)}',
                           style: const TextStyle(
-                            fontSize: 10,
+                            fontSize: 9,
                             fontWeight: FontWeight.bold,
                             color: Colors.blue,
                           ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                         Text(
                           _getOrderStatusText(currentOrder.status),
                           style: TextStyle(
-                            fontSize: 9,
+                            fontSize: 8,
                             color: Colors.grey[600],
                           ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ],
                     ),
@@ -412,13 +382,12 @@ class _WaiterDashboardScreenState extends State<WaiterDashboardScreen> {
   ) async {
     // Show loading
     if (!context.mounted) return;
-    
+
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (dialogContext) => const Center(
-        child: CircularProgressIndicator(),
-      ),
+      builder: (dialogContext) =>
+          const Center(child: CircularProgressIndicator()),
     );
 
     try {
@@ -426,10 +395,10 @@ class _WaiterDashboardScreenState extends State<WaiterDashboardScreen> {
       final orders = await provider.getCompletedOrdersForTable(table.id);
 
       if (!context.mounted) return;
-      
+
       // Close loading dialog
       Navigator.pop(context);
-      
+
       if (orders.isEmpty) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -448,10 +417,8 @@ class _WaiterDashboardScreenState extends State<WaiterDashboardScreen> {
         showDialog(
           context: context,
           barrierDismissible: true,
-          builder: (dialogContext) => PaymentDialog(
-            table: table,
-            orders: orders,
-          ),
+          builder: (dialogContext) =>
+              PaymentDialog(table: table, orders: orders),
         );
       }
     } catch (e) {
@@ -509,14 +476,18 @@ class _WaiterDashboardScreenState extends State<WaiterDashboardScreen> {
                     children: [
                       Text(
                         table.name,
-                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
+                        style: Theme.of(context).textTheme.headlineSmall
+                            ?.copyWith(fontWeight: FontWeight.bold),
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
                         decoration: BoxDecoration(
-                          color: provider.getTableColor(table.status).withValues(alpha: 0.1),
+                          color: provider
+                              .getTableColor(table.status)
+                              .withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
@@ -535,8 +506,8 @@ class _WaiterDashboardScreenState extends State<WaiterDashboardScreen> {
                     Text(
                       'Đơn hàng hiện tại',
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Container(
@@ -559,9 +530,14 @@ class _WaiterDashboardScreenState extends State<WaiterDashboardScreen> {
                                 ),
                               ),
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
                                 decoration: BoxDecoration(
-                                  color: _getOrderStatusColor(order.status).withValues(alpha: 0.2),
+                                  color: _getOrderStatusColor(
+                                    order.status,
+                                  ).withValues(alpha: 0.2),
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: Text(
@@ -585,19 +561,27 @@ class _WaiterDashboardScreenState extends State<WaiterDashboardScreen> {
                           ),
                           const SizedBox(height: 8),
                           const Divider(),
-                          ...order.items.map((item) => Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 4),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text('${item.quantity}x ${item.menuItem.name}'),
-                                    Text(
-                                      (item.menuItem.price * item.quantity).toVnd(),
-                                      style: const TextStyle(fontWeight: FontWeight.bold),
+                          ...order.items.map(
+                            (item) => Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 4),
+                              child: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    '${item.quantity}x ${item.menuItem.name}',
+                                  ),
+                                  Text(
+                                    (item.menuItem.price * item.quantity)
+                                        .toVnd(),
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
                                     ),
-                                  ],
-                                ),
-                              )),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
                           const Divider(),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,

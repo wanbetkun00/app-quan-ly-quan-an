@@ -20,12 +20,12 @@ class AppStrings {
 
   // Screens titles
   String get waiterTitle => language == AppLanguage.en
-      ? 'Table Map (Front-of-House)'
-      : 'Sơ đồ bàn (Khu phục vụ)';
+      ? 'Table Map'
+      : 'Sơ đồ bàn';
 
   String get kitchenTitle => language == AppLanguage.en
-      ? 'Kitchen Display System (KDS)'
-      : 'Màn hình bếp (KDS)';
+      ? 'Kitchen Display System'
+      : 'Màn hình bếp';
 
   String get managerTitle =>
       language == AppLanguage.en ? 'Manager Admin' : 'Quản lý nhà hàng';
@@ -81,8 +81,8 @@ class AppStrings {
       language == AppLanguage.en ? 'Active Orders' : 'Đơn hàng đang xử lý';
 
   String get mgrBestSellingDemo => language == AppLanguage.en
-      ? 'Best Selling Items (Demo)'
-      : 'Món bán chạy (demo)';
+      ? 'Best Selling Items'
+      : 'Món bán chạy';
 
   String soldUnits(int n) =>
       language == AppLanguage.en ? '$n sold' : 'Đã bán $n';
@@ -91,8 +91,8 @@ class AppStrings {
       language == AppLanguage.en ? 'Add New Dish' : 'Thêm món mới';
 
   String get mgrStaffComingSoon => language == AppLanguage.en
-      ? 'Staff Management Module\n(Coming Soon)'
-      : 'Chức năng quản lý nhân viên\n(Soon sẽ có)';
+      ? 'Staff Management Module'
+      : 'Chức năng quản lý nhân viên';
 }
 
 extension AppStringsContext on BuildContext {

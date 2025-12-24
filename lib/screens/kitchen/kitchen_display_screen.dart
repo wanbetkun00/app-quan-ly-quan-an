@@ -59,6 +59,9 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
           appBar: _buildAppBar(context),
           body: Column(
             children: [
+              // Order Status Section
+              _buildOrderStatusSection(context, provider),
+              
               // Filter Bar
               _buildFilterBar(context, filteredOrders),
               
@@ -138,6 +141,103 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildOrderStatusSection(BuildContext context, RestaurantProvider provider) {
+    final pendingCount = provider.activeOrders
+        .where((o) => o.status == OrderStatus.pending)
+        .length;
+    final cookingCount = provider.activeOrders
+        .where((o) => o.status == OrderStatus.cooking)
+        .length;
+    final readyCount = provider.activeOrders
+        .where((o) => o.status == OrderStatus.readyToServe)
+        .length;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      color: Colors.white,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Trạng thái đơn hàng',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: AppTheme.darkGreyText,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _buildStatusCard(
+                  context,
+                  'Chờ xử lý',
+                  '$pendingCount',
+                  AppTheme.statusRed,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildStatusCard(
+                  context,
+                  'Đang nấu',
+                  '$cookingCount',
+                  AppTheme.statusYellow,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildStatusCard(
+                  context,
+                  'Sẵn sàng',
+                  '$readyCount',
+                  AppTheme.statusGreen,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusCard(
+    BuildContext context,
+    String title,
+    String value,
+    Color color,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        children: [
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 11,
+              color: Colors.grey[700],
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
     );
   }
 
