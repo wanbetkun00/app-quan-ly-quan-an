@@ -162,7 +162,7 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Trạng thái đơn hàng',
+            context.strings.orderStatusTitle,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.bold,
               color: AppTheme.darkGreyText,
@@ -174,7 +174,7 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
               Expanded(
                 child: _buildStatusCard(
                   context,
-                  'Chờ xử lý',
+                  context.strings.orderStatusPending,
                   '$pendingCount',
                   AppTheme.statusRed,
                 ),
@@ -183,7 +183,7 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
               Expanded(
                 child: _buildStatusCard(
                   context,
-                  'Đang nấu',
+                  context.strings.orderStatusCooking,
                   '$cookingCount',
                   AppTheme.statusYellow,
                 ),
@@ -192,7 +192,7 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
               Expanded(
                 child: _buildStatusCard(
                   context,
-                  'Sẵn sàng',
+                  context.strings.orderStatusReady,
                   '$readyCount',
                   AppTheme.statusGreen,
                 ),
@@ -252,22 +252,22 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: [
-                  _buildFilterChip('Tất cả', null, orders.length),
+                  _buildFilterChip(context.strings.filterAll, null, orders.length),
                   const SizedBox(width: 8),
                   _buildFilterChip(
-                    'Chờ xử lý',
+                    context.strings.orderStatusPending,
                     OrderStatus.pending,
                     orders.where((o) => o.status == OrderStatus.pending).length,
                   ),
                   const SizedBox(width: 8),
                   _buildFilterChip(
-                    'Đang nấu',
+                    context.strings.orderStatusCooking,
                     OrderStatus.cooking,
                     orders.where((o) => o.status == OrderStatus.cooking).length,
                   ),
                   const SizedBox(width: 8),
                   _buildFilterChip(
-                    'Sẵn sàng',
+                    context.strings.orderStatusReady,
                     OrderStatus.readyToServe,
                     orders.where((o) => o.status == OrderStatus.readyToServe).length,
                   ),
@@ -372,7 +372,7 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Không có đơn hàng nào để hiển thị',
+            context.strings.noOrdersToDisplay,
             style: TextStyle(
               fontSize: 14,
               color: Colors.grey[500],
@@ -397,21 +397,21 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
     switch (order.status) {
       case OrderStatus.pending:
         statusColor = AppTheme.statusRed;
-        statusText = 'CHỜ XỬ LÝ';
+        statusText = context.strings.orderStatusPendingUpper;
         nextActionText = context.strings.kdsStartCooking;
         nextActionIcon = Icons.local_fire_department;
         actionColor = AppTheme.statusRed;
         break;
       case OrderStatus.cooking:
         statusColor = AppTheme.statusYellow;
-        statusText = 'ĐANG NẤU';
+        statusText = context.strings.orderStatusCookingUpper;
         nextActionText = context.strings.kdsReadyToServe;
         nextActionIcon = Icons.check_circle_outline;
         actionColor = AppTheme.statusYellow;
         break;
       case OrderStatus.readyToServe:
         statusColor = AppTheme.statusGreen;
-        statusText = 'SẴN SÀNG';
+        statusText = context.strings.orderStatusReadyUpper;
         nextActionText = context.strings.kdsCompleteOrder;
         nextActionIcon = Icons.done_all;
         actionColor = AppTheme.statusGreen;
@@ -776,7 +776,7 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
-                      _getStatusText(order.status),
+                      _getStatusText(context, order.status),
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 12,
@@ -973,16 +973,16 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
     );
   }
 
-  String _getStatusText(OrderStatus status) {
+  String _getStatusText(BuildContext context, OrderStatus status) {
     switch (status) {
       case OrderStatus.pending:
-        return 'CHỜ XỬ LÝ';
+        return context.strings.orderStatusPendingUpper;
       case OrderStatus.cooking:
-        return 'ĐANG NẤU';
+        return context.strings.orderStatusCookingUpper;
       case OrderStatus.readyToServe:
-        return 'SẴN SÀNG';
+        return context.strings.orderStatusReadyUpper;
       case OrderStatus.completed:
-        return 'HOÀN TẤT';
+        return context.strings.orderStatusCompletedUpper;
     }
   }
 

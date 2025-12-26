@@ -45,7 +45,7 @@ class _WaiterDashboardScreenState extends State<WaiterDashboardScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.calendar_today),
-            tooltip: 'Ca làm của tôi',
+            tooltip: context.strings.mgrTabShifts,
             onPressed: () {
               Navigator.push(
                 context,
@@ -57,7 +57,7 @@ class _WaiterDashboardScreenState extends State<WaiterDashboardScreen> {
           ),
           IconButton(
             icon: const Icon(Icons.refresh),
-            tooltip: 'Làm mới',
+            tooltip: context.strings.refresh,
             onPressed: () => provider.refreshData(),
           ),
           Padding(
@@ -94,14 +94,14 @@ class _WaiterDashboardScreenState extends State<WaiterDashboardScreen> {
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: [
-                  _buildFilterChip('Tất cả', null),
+                  _buildFilterChip(context.strings.filterAll, null),
                   const SizedBox(width: 8),
-                  _buildFilterChip('Trống', TableStatus.available),
+                  _buildFilterChip(context.strings.filterFree, TableStatus.available),
                   const SizedBox(width: 8),
-                  _buildFilterChip('Đang dùng', TableStatus.occupied),
+                  _buildFilterChip(context.strings.filterBusy, TableStatus.occupied),
                   const SizedBox(width: 8),
                   _buildFilterChip(
-                    'Chờ thanh toán',
+                    context.strings.filterPaymentPending,
                     TableStatus.paymentPending,
                   ),
                 ],
@@ -116,11 +116,11 @@ class _WaiterDashboardScreenState extends State<WaiterDashboardScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                _buildLegendItem(AppTheme.statusGreen, 'Trống'),
+                _buildLegendItem(AppTheme.statusGreen, context.strings.legendFree),
                 const SizedBox(width: 16),
-                _buildLegendItem(AppTheme.statusRed, 'Đang dùng'),
+                _buildLegendItem(AppTheme.statusRed, context.strings.legendBusy),
                 const SizedBox(width: 16),
-                _buildLegendItem(AppTheme.statusYellow, 'Chờ thanh toán'),
+                _buildLegendItem(AppTheme.statusYellow, context.strings.legendPay),
               ],
             ),
           ),
@@ -141,7 +141,7 @@ class _WaiterDashboardScreenState extends State<WaiterDashboardScreen> {
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          'Chưa có bàn nào',
+                          context.strings.noTablesAvailable,
                           style: TextStyle(
                             fontSize: 16,
                             color: Colors.grey[600],
@@ -289,7 +289,7 @@ class _WaiterDashboardScreenState extends State<WaiterDashboardScreen> {
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
-                    _getStatusText(table.status),
+                    _getStatusText(context, table.status),
                     style: TextStyle(
                       color: statusColor,
                       fontSize: 9,
@@ -322,7 +322,7 @@ class _WaiterDashboardScreenState extends State<WaiterDashboardScreen> {
                           overflow: TextOverflow.ellipsis,
                         ),
                         Text(
-                          _getOrderStatusText(currentOrder.status),
+                          _getOrderStatusText(context, currentOrder.status),
                           style: TextStyle(
                             fontSize: 8,
                             color: Colors.grey[600],
@@ -342,27 +342,27 @@ class _WaiterDashboardScreenState extends State<WaiterDashboardScreen> {
     );
   }
 
-  String _getStatusText(TableStatus status) {
+  String _getStatusText(BuildContext context, TableStatus status) {
     switch (status) {
       case TableStatus.available:
-        return 'TRỐNG';
+        return context.strings.tableStatusAvailableUpper;
       case TableStatus.occupied:
-        return 'ĐANG DÙNG';
+        return context.strings.tableStatusOccupiedUpper;
       case TableStatus.paymentPending:
-        return 'CHỜ THANH TOÁN';
+        return context.strings.tableStatusPaymentPendingUpper;
     }
   }
 
-  String _getOrderStatusText(OrderStatus status) {
+  String _getOrderStatusText(BuildContext context, OrderStatus status) {
     switch (status) {
       case OrderStatus.pending:
-        return 'Chờ nấu';
+        return context.strings.orderStatusPendingWait;
       case OrderStatus.cooking:
-        return 'Đang nấu';
+        return context.strings.orderStatusCookingWait;
       case OrderStatus.readyToServe:
-        return 'Sẵn sàng';
+        return context.strings.orderStatusReadyWait;
       case OrderStatus.completed:
-        return 'Hoàn thành';
+        return context.strings.orderStatusCompletedWait;
     }
   }
 
@@ -491,7 +491,7 @@ class _WaiterDashboardScreenState extends State<WaiterDashboardScreen> {
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
-                          _getStatusText(table.status),
+                          _getStatusText(context, table.status),
                           style: TextStyle(
                             color: provider.getTableColor(table.status),
                             fontWeight: FontWeight.bold,
@@ -541,7 +541,7 @@ class _WaiterDashboardScreenState extends State<WaiterDashboardScreen> {
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: Text(
-                                  _getOrderStatusText(order.status),
+                                  _getOrderStatusText(context, order.status),
                                   style: TextStyle(
                                     color: _getOrderStatusColor(order.status),
                                     fontSize: 11,

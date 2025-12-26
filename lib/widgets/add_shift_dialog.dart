@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../models/shift_model.dart';
 import '../models/enums.dart';
 import '../providers/restaurant_provider.dart';
+import '../providers/app_strings.dart';
 import '../theme/app_theme.dart';
 
 class AddShiftDialog extends StatefulWidget {
@@ -48,7 +49,9 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
     final provider = Provider.of<RestaurantProvider>(context, listen: false);
 
     return AlertDialog(
-      title: Text(widget.shiftToEdit == null ? 'Thêm ca làm mới' : 'Sửa ca làm'),
+      title: Text(widget.shiftToEdit == null
+          ? context.strings.addNewShift
+          : context.strings.editShift),
       content: SingleChildScrollView(
         child: Form(
           key: _formKey,
@@ -58,9 +61,9 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
               // Employee selection
               DropdownButtonFormField<String>(
                 value: _selectedEmployeeId,
-                decoration: const InputDecoration(
-                  labelText: 'Nhân viên',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: context.strings.employeeLabel,
+                  border: const OutlineInputBorder(),
                 ),
                 items: provider.employees.map((emp) {
                   return DropdownMenuItem<String>(
@@ -75,7 +78,7 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                 },
                 validator: (value) {
                   if (value == null || value.isEmpty) {
-                    return 'Vui lòng chọn nhân viên';
+                    return context.strings.selectEmployeeRequired;
                   }
                   return null;
                 },
@@ -98,10 +101,10 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                   }
                 },
                 child: InputDecorator(
-                  decoration: const InputDecoration(
-                    labelText: 'Ngày làm việc',
-                    border: OutlineInputBorder(),
-                    suffixIcon: Icon(Icons.calendar_today),
+                  decoration: InputDecoration(
+                    labelText: context.strings.workDayLabel,
+                    border: const OutlineInputBorder(),
+                    suffixIcon: const Icon(Icons.calendar_today),
                   ),
                   child: Text(
                     '${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}',
@@ -127,10 +130,10 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                         }
                       },
                       child: InputDecorator(
-                        decoration: const InputDecoration(
-                          labelText: 'Giờ bắt đầu',
-                          border: OutlineInputBorder(),
-                          suffixIcon: Icon(Icons.access_time),
+                        decoration: InputDecoration(
+                          labelText: context.strings.startTimeLabel,
+                          border: const OutlineInputBorder(),
+                          suffixIcon: const Icon(Icons.access_time),
                         ),
                         child: Text(
                           '${_startTime.hour.toString().padLeft(2, '0')}:${_startTime.minute.toString().padLeft(2, '0')}',
@@ -153,10 +156,10 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                         }
                       },
                       child: InputDecorator(
-                        decoration: const InputDecoration(
-                          labelText: 'Giờ kết thúc',
-                          border: OutlineInputBorder(),
-                          suffixIcon: Icon(Icons.access_time),
+                        decoration: InputDecoration(
+                          labelText: context.strings.endTimeLabel,
+                          border: const OutlineInputBorder(),
+                          suffixIcon: const Icon(Icons.access_time),
                         ),
                         child: Text(
                           '${_endTime.hour.toString().padLeft(2, '0')}:${_endTime.minute.toString().padLeft(2, '0')}',
@@ -169,36 +172,41 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
               const SizedBox(height: 16),
 
               // Status
-              DropdownButtonFormField<ShiftStatus>(
-                value: _status,
-                decoration: const InputDecoration(
-                  labelText: 'Trạng thái',
-                  border: OutlineInputBorder(),
-                ),
-                items: ShiftStatus.values.map((status) {
-                  String label = 'Đã lên lịch';
-                  switch (status) {
-                    case ShiftStatus.scheduled:
-                      label = 'Đã lên lịch';
-                      break;
-                    case ShiftStatus.completed:
-                      label = 'Đã hoàn thành';
-                      break;
-                    case ShiftStatus.cancelled:
-                      label = 'Đã hủy';
-                      break;
-                  }
-                  return DropdownMenuItem<ShiftStatus>(
-                    value: status,
-                    child: Text(label),
+              Builder(
+                builder: (context) {
+                  final strings = context.strings;
+                  return DropdownButtonFormField<ShiftStatus>(
+                    value: _status,
+                    decoration: InputDecoration(
+                      labelText: strings.tableStatusLabel,
+                      border: const OutlineInputBorder(),
+                    ),
+                    items: ShiftStatus.values.map((status) {
+                      String label;
+                      switch (status) {
+                        case ShiftStatus.scheduled:
+                          label = strings.shiftScheduled;
+                          break;
+                        case ShiftStatus.completed:
+                          label = strings.shiftCompleted;
+                          break;
+                        case ShiftStatus.cancelled:
+                          label = strings.shiftCancelled;
+                          break;
+                      }
+                      return DropdownMenuItem<ShiftStatus>(
+                        value: status,
+                        child: Text(label),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      if (value != null) {
+                        setState(() {
+                          _status = value;
+                        });
+                      }
+                    },
                   );
-                }).toList(),
-                onChanged: (value) {
-                  if (value != null) {
-                    setState(() {
-                      _status = value;
-                    });
-                  }
                 },
               ),
               const SizedBox(height: 16),
@@ -206,9 +214,9 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
               // Notes
               TextFormField(
                 controller: _notesController,
-                decoration: const InputDecoration(
-                  labelText: 'Ghi chú (tùy chọn)',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: context.strings.notesLabel,
+                  border: const OutlineInputBorder(),
                 ),
                 maxLines: 2,
               ),
@@ -219,7 +227,7 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Hủy'),
+          child: Text(context.strings.cancelButton),
         ),
         ElevatedButton(
           onPressed: () async {
@@ -237,15 +245,17 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                 // Show warning dialog
                 final shouldContinue = await showDialog<bool>(
                   context: context,
-                  builder: (context) => AlertDialog(
+                  builder: (dialogContext) {
+                    final strings = dialogContext.strings;
+                    return AlertDialog(
                     title: Row(
                       children: [
                         Icon(Icons.warning, color: Colors.orange[700], size: 28),
                         const SizedBox(width: 12),
-                        const Expanded(
+                        Expanded(
                           child: Text(
-                            'Cảnh báo trùng ca làm',
-                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                            strings.shiftOverlapWarning,
+                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                           ),
                         ),
                       ],
@@ -254,9 +264,9 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Nhân viên này đã có ca làm trùng với thời gian bạn chọn:',
-                          style: TextStyle(fontSize: 14),
+                        Text(
+                          strings.employeeHasOverlappingShift,
+                          style: const TextStyle(fontSize: 14),
                         ),
                         const SizedBox(height: 12),
                         ...overlappingShifts.map((shift) {
@@ -291,9 +301,9 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                           );
                         }),
                         const SizedBox(height: 12),
-                        const Text(
-                          'Bạn có muốn tiếp tục thêm ca làm này không?',
-                          style: TextStyle(
+                        Text(
+                          strings.continueAddingShift,
+                          style: const TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w500,
                           ),
@@ -302,51 +312,52 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                     ),
                     actions: [
                       TextButton(
-                        onPressed: () => Navigator.pop(context, false),
-                        child: const Text('Hủy'),
+                        onPressed: () => Navigator.pop(dialogContext, false),
+                        child: Text(strings.cancelButton),
                       ),
                       ElevatedButton(
-                        onPressed: () => Navigator.pop(context, true),
+                        onPressed: () => Navigator.pop(dialogContext, true),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.orange[700],
                           foregroundColor: Colors.white,
                         ),
-                        child: const Text('Vẫn thêm'),
+                        child: Text(strings.addAnyway),
                       ),
                     ],
-                  ),
+                  );
+                  },
                 );
 
-                if (shouldContinue != true) {
-                  return; // User cancelled
+                if (shouldContinue != true || !mounted) {
+                  return; // User cancelled or widget disposed
                 }
               }
 
-              if (mounted) {
-                final employee = provider.employees.firstWhere(
-                  (emp) => emp['id'] == _selectedEmployeeId,
-                );
+              if (!mounted) return;
+              
+              final employee = provider.employees.firstWhere(
+                (emp) => emp['id'] == _selectedEmployeeId,
+              );
 
-                final shift = ShiftModel(
-                  id: widget.shiftToEdit?.id ?? '',
-                  employeeId: _selectedEmployeeId!,
-                  employeeName: employee['name']!,
-                  date: _selectedDate,
-                  startTime: _startTime,
-                  endTime: _endTime,
-                  status: _status,
-                  notes: _notesController.text.isEmpty ? null : _notesController.text,
-                );
+              final shift = ShiftModel(
+                id: widget.shiftToEdit?.id ?? '',
+                employeeId: _selectedEmployeeId!,
+                employeeName: employee['name']!,
+                date: _selectedDate,
+                startTime: _startTime,
+                endTime: _endTime,
+                status: _status,
+                notes: _notesController.text.isEmpty ? null : _notesController.text,
+              );
 
-                Navigator.pop(context, shift);
-              }
+              Navigator.pop(context, shift);
             }
           },
           style: ElevatedButton.styleFrom(
             backgroundColor: AppTheme.primaryOrange,
             foregroundColor: Colors.white,
           ),
-          child: const Text('Lưu'),
+          child: Text(context.strings.saveButton),
         ),
       ],
     );

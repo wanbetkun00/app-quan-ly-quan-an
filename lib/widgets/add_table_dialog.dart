@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import '../models/models.dart';
 import '../theme/app_theme.dart';
+import '../providers/app_strings.dart';
 
 class AddTableDialog extends StatefulWidget {
   final TableModel? tableToEdit;
-  
+
   const AddTableDialog({super.key, this.tableToEdit});
 
   @override
@@ -39,11 +40,11 @@ class _AddTableDialogState extends State<AddTableDialog> {
     if (_formKey.currentState!.validate()) {
       final name = _nameController.text.trim();
       final id = int.tryParse(_idController.text.trim());
-      
+
       if (id == null || id <= 0) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Vui lòng nhập ID hợp lệ'),
+          SnackBar(
+            content: Text(context.strings.validIdRequired),
             backgroundColor: Colors.red,
           ),
         );
@@ -75,76 +76,79 @@ class _AddTableDialogState extends State<AddTableDialog> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  widget.tableToEdit == null ? 'Thêm bàn mới' : 'Sửa thông tin bàn',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                  widget.tableToEdit == null
+                      ? context.strings.addNewTable
+                      : context.strings.editTableInfo,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 24),
-                
+
                 // ID Field
                 TextFormField(
                   controller: _idController,
-                  decoration: const InputDecoration(
-                    labelText: 'Số bàn (ID)',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.numbers),
-                    helperText: 'Số bàn phải là số nguyên dương',
+                  decoration: InputDecoration(
+                    labelText: context.strings.tableNumberLabel,
+                    border: const OutlineInputBorder(),
+                    prefixIcon: const Icon(Icons.numbers),
+                    helperText: context.strings.tableNumberHelper,
                   ),
                   keyboardType: TextInputType.number,
-                  enabled: widget.tableToEdit == null, // Không cho sửa ID khi edit
+                  enabled:
+                      widget.tableToEdit == null, // Không cho sửa ID khi edit
                   validator: (value) {
                     if (value == null || value.trim().isEmpty) {
-                      return 'Vui lòng nhập số bàn';
+                      return context.strings.tableNumberRequired;
                     }
                     final id = int.tryParse(value.trim());
                     if (id == null || id <= 0) {
-                      return 'Số bàn không hợp lệ';
+                      return context.strings.tableNumberInvalid;
                     }
                     return null;
                   },
                 ),
                 const SizedBox(height: 16),
-                
+
                 // Name Field
                 TextFormField(
                   controller: _nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Tên bàn',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.table_restaurant),
-                    helperText: 'Ví dụ: Bàn 1, T1, Table 1',
+                  decoration: InputDecoration(
+                    labelText: context.strings.tableNameLabel,
+                    border: const OutlineInputBorder(),
+                    prefixIcon: const Icon(Icons.table_restaurant),
+                    helperText: context.strings.tableNameExample,
                   ),
                   validator: (value) {
                     if (value == null || value.trim().isEmpty) {
-                      return 'Vui lòng nhập tên bàn';
+                      return context.strings.tableNameRequired;
                     }
                     return null;
                   },
                 ),
                 const SizedBox(height: 16),
-                
+
                 // Status Dropdown
                 DropdownButtonFormField<TableStatus>(
                   initialValue: _selectedStatus,
-                  decoration: const InputDecoration(
-                    labelText: 'Trạng thái',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.info),
+                  decoration: InputDecoration(
+                    labelText: context.strings.tableStatusLabel,
+                    border: const OutlineInputBorder(),
+                    prefixIcon: const Icon(Icons.info),
                   ),
-                  items: const [
+                  items: [
                     DropdownMenuItem(
                       value: TableStatus.available,
-                      child: Text('Trống'),
+                      child: Text(context.strings.tableStatusAvailable),
                     ),
                     DropdownMenuItem(
                       value: TableStatus.occupied,
-                      child: Text('Đang dùng'),
+                      child: Text(context.strings.tableStatusOccupied),
                     ),
                     DropdownMenuItem(
                       value: TableStatus.paymentPending,
-                      child: Text('Chờ thanh toán'),
+                      child: Text(context.strings.tableStatusPaymentPending),
                     ),
                   ],
                   onChanged: (value) {
@@ -156,14 +160,14 @@ class _AddTableDialogState extends State<AddTableDialog> {
                   },
                 ),
                 const SizedBox(height: 24),
-                
+
                 // Action Buttons
                 Row(
                   children: [
                     Expanded(
                       child: OutlinedButton(
                         onPressed: () => Navigator.of(context).pop(),
-                        child: const Text('Hủy'),
+                        child: Text(context.strings.cancelButton),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -174,7 +178,11 @@ class _AddTableDialogState extends State<AddTableDialog> {
                           backgroundColor: AppTheme.primaryOrange,
                           foregroundColor: Colors.white,
                         ),
-                        child: Text(widget.tableToEdit == null ? 'Thêm bàn' : 'Cập nhật'),
+                        child: Text(
+                          widget.tableToEdit == null
+                              ? context.strings.addTableButton
+                              : context.strings.updateButton,
+                        ),
                       ),
                     ),
                   ],
@@ -187,4 +195,3 @@ class _AddTableDialogState extends State<AddTableDialog> {
     );
   }
 }
-

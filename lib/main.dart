@@ -58,7 +58,7 @@ class MainNavigationScaffold extends StatefulWidget {
 }
 
 class _MainNavigationScaffoldState extends State<MainNavigationScaffold>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   int _selectedIndex = 0;
   late PageController _pageController;
 
@@ -67,10 +67,9 @@ class _MainNavigationScaffoldState extends State<MainNavigationScaffold>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _pages = widget.role == UserRole.staff
-        ? const [
-            WaiterDashboardScreen(),
-          ]
+        ? const [WaiterDashboardScreen()]
         : const [
             WaiterDashboardScreen(),
             KitchenDisplayScreen(),
@@ -81,8 +80,19 @@ class _MainNavigationScaffoldState extends State<MainNavigationScaffold>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _pageController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    // When app resumes, refresh data to sync table statuses
+    if (state == AppLifecycleState.resumed && mounted) {
+      final provider = Provider.of<RestaurantProvider>(context, listen: false);
+      provider.refreshData();
+    }
   }
 
   void _onDestinationSelected(int index) {
@@ -102,7 +112,7 @@ class _MainNavigationScaffoldState extends State<MainNavigationScaffold>
   Widget build(BuildContext context) {
     final strings = context.strings;
     final auth = Provider.of<AuthProvider>(context, listen: false);
-    
+
     // Nếu là nhân viên, chỉ hiển thị màn hình phục vụ (không có bottom navigation)
     if (widget.role == UserRole.staff) {
       return Scaffold(
@@ -114,14 +124,14 @@ class _MainNavigationScaffoldState extends State<MainNavigationScaffold>
                 auth.logout();
               },
               icon: const Icon(Icons.logout, size: 18),
-              label: const Text('Đăng xuất'),
+              label: Text(context.strings.logout),
             ),
           ],
         ),
         body: const WaiterDashboardScreen(),
       );
     }
-    
+
     // Nếu là quản lý, hiển thị đầy đủ với bottom navigation
     return Scaffold(
       appBar: AppBar(
@@ -132,7 +142,7 @@ class _MainNavigationScaffoldState extends State<MainNavigationScaffold>
               auth.logout();
             },
             icon: const Icon(Icons.logout, size: 18),
-            label: const Text('Đăng xuất'),
+            label: Text(context.strings.logout),
           ),
         ],
       ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/report_model.dart';
 import '../../providers/restaurant_provider.dart';
+import '../../providers/app_strings.dart';
 import '../../theme/app_theme.dart';
 import '../../models/menu_item.dart';
 import '../../models/enums.dart';
@@ -34,15 +35,15 @@ class _ReportsScreenState extends State<ReportsScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Báo cáo'),
+        title: Text(context.strings.reportsTitle),
         bottom: TabBar(
           controller: _tabController,
           labelColor: AppTheme.primaryOrange,
           indicatorColor: AppTheme.primaryOrange,
-          tabs: const [
-            Tab(text: 'Theo tuần'),
-            Tab(text: 'Theo tháng'),
-            Tab(text: 'Theo năm'),
+          tabs: [
+            Tab(text: context.strings.reportByWeek),
+            Tab(text: context.strings.reportByMonth),
+            Tab(text: context.strings.reportByYear),
           ],
         ),
       ),
@@ -94,7 +95,7 @@ class _ReportTabViewState extends State<_ReportTabView> {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Lỗi khi tải báo cáo: $e'),
+            content: Text(context.strings.errorLoadingReport(e.toString())),
             backgroundColor: AppTheme.statusRed,
           ),
         );
@@ -148,7 +149,7 @@ class _ReportTabViewState extends State<_ReportTabView> {
           setState(() => _isLoading = false);
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Lỗi khi tạo báo cáo: $e'),
+              content: Text(context.strings.errorGeneratingReport(e.toString())),
               backgroundColor: AppTheme.statusRed,
             ),
           );
@@ -171,11 +172,11 @@ class _ReportTabViewState extends State<_ReportTabView> {
             final months = List.generate(12, (i) => i + 1);
 
             return AlertDialog(
-              title: const Text('Chọn tháng/năm'),
+              title: Text(context.strings.selectMonthYear),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('Năm:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  Text(context.strings.yearLabel, style: const TextStyle(fontWeight: FontWeight.bold)),
                   Wrap(
                     spacing: 8,
                     children: years.map((year) {
@@ -189,7 +190,7 @@ class _ReportTabViewState extends State<_ReportTabView> {
                     }).toList(),
                   ),
                   const SizedBox(height: 16),
-                  const Text('Tháng:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  Text(context.strings.monthLabel, style: const TextStyle(fontWeight: FontWeight.bold)),
                   Wrap(
                     spacing: 8,
                     children: months.map((month) {
@@ -207,7 +208,7 @@ class _ReportTabViewState extends State<_ReportTabView> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('Hủy'),
+                  child: Text(context.strings.cancelButton),
                 ),
                 ElevatedButton(
                   onPressed: (selectedYear != null && selectedMonth != null)
@@ -216,7 +217,7 @@ class _ReportTabViewState extends State<_ReportTabView> {
                             'month': selectedMonth!,
                           })
                       : null,
-                  child: const Text('Chọn'),
+                  child: Text(context.strings.selectButton),
                 ),
               ],
             );
@@ -238,11 +239,11 @@ class _ReportTabViewState extends State<_ReportTabView> {
             final years = List.generate(5, (i) => currentYear - i);
 
             return AlertDialog(
-              title: const Text('Chọn năm'),
+              title: Text(context.strings.selectYear),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('Năm:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  Text(context.strings.yearLabel, style: const TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 12),
                   Wrap(
                     spacing: 8,
@@ -262,13 +263,13 @@ class _ReportTabViewState extends State<_ReportTabView> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('Hủy'),
+                  child: Text(context.strings.cancelButton),
                 ),
                 ElevatedButton(
                   onPressed: selectedYear != null
                       ? () => Navigator.pop(context, selectedYear)
                       : null,
-                  child: const Text('Chọn'),
+                  child: Text(context.strings.selectButton),
                 ),
               ],
             );
@@ -296,14 +297,14 @@ class _ReportTabViewState extends State<_ReportTabView> {
             ),
             const SizedBox(height: 16),
             Text(
-              'Chưa có dữ liệu báo cáo',
+              context.strings.noReportData,
               style: TextStyle(color: Colors.grey[600], fontSize: 16),
             ),
             const SizedBox(height: 24),
             ElevatedButton.icon(
               onPressed: _loadLatestReport,
               icon: const Icon(Icons.refresh),
-              label: const Text('Tải báo cáo mới nhất'),
+              label: Text(context.strings.loadLatestReport),
             ),
           ],
         ),
@@ -330,7 +331,7 @@ class _ReportTabViewState extends State<_ReportTabView> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Báo cáo ${report.periodLabel}',
+                        context.strings.reportForPeriod(report.periodLabel),
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
                               fontWeight: FontWeight.bold,
                             ),
@@ -346,7 +347,7 @@ class _ReportTabViewState extends State<_ReportTabView> {
                 IconButton(
                   icon: const Icon(Icons.calendar_today),
                   onPressed: _selectDateAndGenerate,
-                  tooltip: 'Chọn ngày khác',
+                  tooltip: context.strings.selectDifferentDate,
                 ),
               ],
             ),
@@ -358,7 +359,7 @@ class _ReportTabViewState extends State<_ReportTabView> {
                 Expanded(
                   child: _buildStatCard(
                     context,
-                    'Tổng doanh thu',
+                    context.strings.totalRevenue,
                     report.totalRevenue.toVnd(),
                     Icons.attach_money,
                     AppTheme.statusGreen,
@@ -368,7 +369,7 @@ class _ReportTabViewState extends State<_ReportTabView> {
                 Expanded(
                   child: _buildStatCard(
                     context,
-                    'Tổng đơn hàng',
+                    context.strings.totalOrders,
                     '${report.totalOrders}',
                     Icons.receipt_long,
                     AppTheme.primaryOrange,
@@ -382,7 +383,7 @@ class _ReportTabViewState extends State<_ReportTabView> {
                 Expanded(
                   child: _buildStatCard(
                     context,
-                    'Đơn hàng trung bình',
+                    context.strings.averageOrder,
                     report.totalOrders > 0
                         ? (report.totalRevenue / report.totalOrders).toVnd()
                         : '0₫',
@@ -394,7 +395,7 @@ class _ReportTabViewState extends State<_ReportTabView> {
                 Expanded(
                   child: _buildStatCard(
                     context,
-                    'Số món đã bán',
+                    context.strings.itemsSold,
                     '${report.itemSales.length}',
                     Icons.restaurant_menu,
                     AppTheme.darkGreyText,
@@ -406,7 +407,7 @@ class _ReportTabViewState extends State<_ReportTabView> {
 
             // Top Selling Items
             Text(
-              'Món bán chạy',
+              context.strings.mgrBestSellingDemo,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -418,7 +419,7 @@ class _ReportTabViewState extends State<_ReportTabView> {
                   padding: const EdgeInsets.all(24.0),
                   child: Center(
                     child: Text(
-                      'Chưa có dữ liệu bán hàng',
+                      context.strings.noSalesData,
                       style: TextStyle(color: Colors.grey[600]),
                     ),
                   ),
@@ -466,7 +467,7 @@ class _ReportTabViewState extends State<_ReportTabView> {
                       ),
                       title: Text(menuItem.name),
                       subtitle: Text(
-                        '${itemEntry.value} đơn vị • ${revenue.toVnd()}',
+                        '${itemEntry.value} ${context.strings.units} • ${revenue.toVnd()}',
                         style: const TextStyle(fontSize: 12),
                       ),
                       trailing: Text(
@@ -496,8 +497,8 @@ class _ReportTabViewState extends State<_ReportTabView> {
                     if (mounted) {
                       setState(() => _isLoading = false);
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Đã lưu báo cáo thành công!'),
+                        SnackBar(
+                          content: Text(context.strings.reportSavedSuccess),
                           backgroundColor: AppTheme.statusGreen,
                         ),
                       );
@@ -507,7 +508,7 @@ class _ReportTabViewState extends State<_ReportTabView> {
                       setState(() => _isLoading = false);
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text('Lỗi khi lưu báo cáo: $e'),
+                          content: Text(context.strings.errorSavingReport(e.toString())),
                           backgroundColor: AppTheme.statusRed,
                         ),
                       );
@@ -515,7 +516,7 @@ class _ReportTabViewState extends State<_ReportTabView> {
                   }
                 },
                 icon: const Icon(Icons.save),
-                label: const Text('Lưu báo cáo này'),
+                label: Text(context.strings.saveReport),
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),

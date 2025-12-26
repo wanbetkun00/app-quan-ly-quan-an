@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import '../../models/shift_model.dart';
 import '../../models/enums.dart';
 import '../../providers/restaurant_provider.dart';
-import '../../providers/auth_provider.dart';
+import '../../providers/app_strings.dart';
 import '../../theme/app_theme.dart';
 
 class ShiftViewScreen extends StatefulWidget {
@@ -28,20 +28,16 @@ class _ShiftViewScreenState extends State<ShiftViewScreen> {
   @override
   Widget build(BuildContext context) {
     final restaurantProvider = Provider.of<RestaurantProvider>(context);
-    final authProvider = Provider.of<AuthProvider>(context);
 
-    // If manager, show all shifts; if staff, show only their shifts
-    final isManager = authProvider.role == UserRole.manager;
-    final employeeId = authProvider.employeeId ?? 'staff';
-
+    // Show all shifts for all employees in the week (both staff and manager)
     final weekDays = _getWeekDays(_currentWeek);
 
     return Scaffold(
       backgroundColor: AppTheme.lightGreyBg,
       appBar: AppBar(
-        title: const Text(
-          'Ca làm của tôi',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+        title: Text(
+          context.strings.myShiftsTitle,
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
         ),
         backgroundColor: AppTheme.primaryOrange,
         foregroundColor: Colors.white,
@@ -54,7 +50,7 @@ class _ShiftViewScreenState extends State<ShiftViewScreen> {
                 _currentWeek = _currentWeek.subtract(const Duration(days: 7));
               });
             },
-            tooltip: 'Tuần trước',
+            tooltip: context.strings.previousWeek,
           ),
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 4),
@@ -69,7 +65,7 @@ class _ShiftViewScreenState extends State<ShiftViewScreen> {
                   _currentWeek = DateTime.now();
                 });
               },
-              tooltip: 'Tuần này',
+              tooltip: context.strings.thisWeek,
             ),
           ),
           IconButton(
@@ -79,16 +75,14 @@ class _ShiftViewScreenState extends State<ShiftViewScreen> {
                 _currentWeek = _currentWeek.add(const Duration(days: 7));
               });
             },
-            tooltip: 'Tuần sau',
+            tooltip: context.strings.nextWeek,
           ),
           const SizedBox(width: 8),
         ],
       ),
       body: FutureBuilder<List<ShiftModel>>(
-        key: ValueKey('${_currentWeek}_$isManager'),
-        future: isManager
-            ? _getAllWeekShifts(restaurantProvider)
-            : _getWeekShifts(restaurantProvider, employeeId),
+        key: ValueKey('${_currentWeek}_all'),
+        future: _getAllWeekShifts(restaurantProvider),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -102,7 +96,7 @@ class _ShiftViewScreenState extends State<ShiftViewScreen> {
                   Icon(Icons.error_outline, size: 64, color: Colors.red[300]),
                   const SizedBox(height: 16),
                   Text(
-                    'Lỗi: ${snapshot.error}',
+                    '${context.strings.errorLoading} ${snapshot.error}',
                     style: TextStyle(color: Colors.red[600]),
                   ),
                 ],
@@ -159,7 +153,10 @@ class _ShiftViewScreenState extends State<ShiftViewScreen> {
                         ),
                         const SizedBox(width: 12),
                         Text(
-                          'Tuần ${_getWeekNumber(_currentWeek)}/${_currentWeek.year}',
+                          context.strings.weekLabel(
+                            _getWeekNumber(_currentWeek),
+                            _currentWeek.year,
+                          ),
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
@@ -183,13 +180,13 @@ class _ShiftViewScreenState extends State<ShiftViewScreen> {
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
                     itemCount: weekDays.length,
-                    itemBuilder: (context, index) {
+                      itemBuilder: (context, index) {
                       final date = weekDays[index];
                       final dateKey = '${date.year}-${date.month}-${date.day}';
                       final dateShifts = groupedShifts[dateKey] ?? [];
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 12),
-                        child: _buildDayCard(date, dateShifts),
+                        child: _buildDayCard(context, date, dateShifts),
                       );
                     },
                   ),
@@ -206,54 +203,6 @@ class _ShiftViewScreenState extends State<ShiftViewScreen> {
     final firstJan = DateTime(date.year, 1, 1);
     final daysSinceFirstJan = date.difference(firstJan).inDays;
     return ((daysSinceFirstJan + firstJan.weekday) / 7).ceil();
-  }
-
-  Future<List<ShiftModel>> _getWeekShifts(
-    RestaurantProvider provider,
-    String employeeId,
-  ) async {
-    try {
-      final weekday = _currentWeek.weekday;
-      final weekStart = _currentWeek.subtract(Duration(days: weekday - 1));
-      final weekEnd = weekStart.add(const Duration(days: 6));
-
-      // Normalize dates to start of day for comparison
-      final weekStartNormalized = DateTime(
-        weekStart.year,
-        weekStart.month,
-        weekStart.day,
-      );
-      final weekEndNormalized = DateTime(
-        weekEnd.year,
-        weekEnd.month,
-        weekEnd.day,
-      );
-
-      final allShifts = await provider.getShiftsForEmployee(employeeId);
-      final filteredShifts = allShifts.where((shift) {
-        final shiftDate = DateTime(
-          shift.date.year,
-          shift.date.month,
-          shift.date.day,
-        );
-        // Check if shift date is within the week range (inclusive)
-        final isInRange =
-            shiftDate.isAtSameMomentAs(weekStartNormalized) ||
-            (shiftDate.isAfter(weekStartNormalized) &&
-                shiftDate.isBefore(weekEndNormalized)) ||
-            shiftDate.isAtSameMomentAs(weekEndNormalized);
-        return isInRange;
-      }).toList();
-
-      debugPrint('Week: ${weekStartNormalized} to ${weekEndNormalized}');
-      debugPrint('Total shifts from DB: ${allShifts.length}');
-      debugPrint('Filtered shifts: ${filteredShifts.length}');
-
-      return filteredShifts;
-    } catch (e) {
-      debugPrint('Error getting week shifts: $e');
-      return [];
-    }
   }
 
   Future<List<ShiftModel>> _getAllWeekShifts(
@@ -308,16 +257,13 @@ class _ShiftViewScreenState extends State<ShiftViewScreen> {
     return '${start.day}/${start.month} - ${end.day}/${end.month}';
   }
 
-  Widget _buildDayCard(DateTime date, List<ShiftModel> shifts) {
+  Widget _buildDayCard(BuildContext context, DateTime date, List<ShiftModel> shifts) {
     final isToday =
         date.year == DateTime.now().year &&
         date.month == DateTime.now().month &&
         date.day == DateTime.now().day;
 
-    final weekdays = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
-    final weekdayName = weekdays[date.weekday % 7];
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final isManager = authProvider.role == UserRole.manager;
+    final weekdayName = context.strings.getWeekdayAbbr(date.weekday);
 
     return Container(
       decoration: BoxDecoration(
@@ -404,7 +350,7 @@ class _ShiftViewScreenState extends State<ShiftViewScreen> {
                               ],
                             ),
                             child: Text(
-                              'Hôm nay',
+                              context.strings.today,
                               style: TextStyle(
                                 color: AppTheme.primaryOrange,
                                 fontSize: 10,
@@ -431,7 +377,7 @@ class _ShiftViewScreenState extends State<ShiftViewScreen> {
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
-                      '${shifts.length} ca',
+                      '${shifts.length} ${context.strings.shifts}',
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
@@ -452,7 +398,7 @@ class _ShiftViewScreenState extends State<ShiftViewScreen> {
                     Icon(Icons.event_busy, size: 40, color: Colors.grey[400]),
                     const SizedBox(height: 8),
                     Text(
-                      'Không có ca',
+                      context.strings.noShifts,
                       style: TextStyle(
                         fontSize: 14,
                         color: Colors.grey[500],
@@ -470,7 +416,7 @@ class _ShiftViewScreenState extends State<ShiftViewScreen> {
                 children: shifts.map((shift) {
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 8),
-                    child: _buildShiftCard(shift, isManager),
+                    child: _buildShiftCard(context, shift, true), // Always show employee name
                   );
                 }).toList(),
               ),
@@ -480,7 +426,7 @@ class _ShiftViewScreenState extends State<ShiftViewScreen> {
     );
   }
 
-  Widget _buildShiftCard(ShiftModel shift, bool showEmployeeName) {
+  Widget _buildShiftCard(BuildContext context, ShiftModel shift, bool showEmployeeName) {
     Color statusColor;
     IconData statusIcon;
 
@@ -592,7 +538,7 @@ class _ShiftViewScreenState extends State<ShiftViewScreen> {
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            '${shift.durationHours.toStringAsFixed(1)} giờ',
+                            '${shift.durationHours.toStringAsFixed(1)} ${context.strings.hours}',
                             style: TextStyle(
                               fontSize: 10,
                               color: Colors.grey[700],

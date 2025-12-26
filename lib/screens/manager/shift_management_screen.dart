@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../models/shift_model.dart';
 import '../../models/enums.dart';
 import '../../providers/restaurant_provider.dart';
+import '../../providers/app_strings.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/add_shift_dialog.dart';
 
@@ -23,12 +24,12 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Quản lý ca làm'),
+        title: Text(context.strings.shiftManagementTitle),
         actions: [
           IconButton(
             icon: const Icon(Icons.add),
             onPressed: () => _showAddShiftDialog(context, provider),
-            tooltip: 'Thêm ca làm mới',
+            tooltip: context.strings.addNewShift,
           ),
         ],
       ),
@@ -89,17 +90,17 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
             color: Colors.grey[100],
             child: Row(
               children: [
-                const Text('Lọc theo nhân viên: '),
+                Text(context.strings.filterByEmployee),
                 const SizedBox(width: 8),
                 Expanded(
                   child: DropdownButton<String>(
                     value: _selectedEmployeeId,
                     isExpanded: true,
-                    hint: const Text('Tất cả nhân viên'),
+                    hint: Text(context.strings.allEmployees),
                     items: [
-                      const DropdownMenuItem<String>(
+                      DropdownMenuItem<String>(
                         value: null,
-                        child: Text('Tất cả nhân viên'),
+                        child: Text(context.strings.allEmployees),
                       ),
                       ...provider.employees.map((emp) {
                         return DropdownMenuItem<String>(
@@ -130,7 +131,7 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
 
                 if (snapshot.hasError) {
                   return Center(
-                    child: Text('Lỗi: ${snapshot.error}'),
+                    child: Text('${context.strings.errorLoading} ${snapshot.error}'),
                   );
                 }
 
@@ -162,7 +163,7 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
                         Icon(Icons.calendar_today, size: 64, color: Colors.grey[400]),
                         const SizedBox(height: 16),
                         Text(
-                          'Không có ca làm trong tuần này',
+                          context.strings.noShiftsThisWeek,
                           style: TextStyle(color: Colors.grey[600]),
                         ),
                       ],
@@ -239,9 +240,9 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
                       color: AppTheme.primaryOrange,
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Text(
-                      'Hôm nay',
-                      style: TextStyle(
+                    child: Text(
+                      context.strings.today,
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
@@ -251,7 +252,7 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
                 ],
                 const Spacer(),
                 Text(
-                  '${shifts.length} ca',
+                  '${shifts.length} ${context.strings.shifts}',
                   style: TextStyle(
                     color: Colors.grey[600],
                     fontSize: 14,
@@ -260,13 +261,13 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
               ],
             ),
           ),
-          ...shifts.map((shift) => _buildShiftTile(shift, provider)),
+          ...shifts.map((shift) => _buildShiftTile(context, shift, provider)),
         ],
       ),
     );
   }
 
-  Widget _buildShiftTile(ShiftModel shift, RestaurantProvider provider) {
+  Widget _buildShiftTile(BuildContext context, ShiftModel shift, RestaurantProvider provider) {
     Color statusColor;
     String statusText;
     IconData statusIcon;
@@ -274,17 +275,17 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
     switch (shift.status) {
       case ShiftStatus.scheduled:
         statusColor = AppTheme.statusYellow;
-        statusText = 'Đã lên lịch';
+        statusText = context.strings.shiftScheduled;
         statusIcon = Icons.schedule;
         break;
       case ShiftStatus.completed:
         statusColor = AppTheme.statusGreen;
-        statusText = 'Đã hoàn thành';
+        statusText = context.strings.shiftCompleted;
         statusIcon = Icons.check_circle;
         break;
       case ShiftStatus.cancelled:
         statusColor = AppTheme.statusRed;
-        statusText = 'Đã hủy';
+        statusText = context.strings.shiftCancelled;
         statusIcon = Icons.cancel;
         break;
     }
@@ -359,23 +360,23 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
               }
             },
             itemBuilder: (context) => [
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: 'edit',
                 child: Row(
                   children: [
-                    Icon(Icons.edit, size: 20, color: Colors.blue),
-                    SizedBox(width: 8),
-                    Text('Sửa'),
+                    const Icon(Icons.edit, size: 20, color: Colors.blue),
+                    const SizedBox(width: 8),
+                    Text(context.strings.editButton),
                   ],
                 ),
               ),
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: 'delete',
                 child: Row(
                   children: [
-                    Icon(Icons.delete, size: 20, color: Colors.red),
-                    SizedBox(width: 8),
-                    Text('Xóa'),
+                    const Icon(Icons.delete, size: 20, color: Colors.red),
+                    const SizedBox(width: 8),
+                    Text(context.strings.deleteButton),
                   ],
                 ),
               ),
@@ -417,8 +418,8 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(success
-                ? 'Đã thêm ca làm cho ${result.employeeName}'
-                : 'Lỗi khi thêm ca làm'),
+                ? context.strings.shiftAddedFor(result.employeeName)
+                : context.strings.errorAddingShift),
             backgroundColor: success ? AppTheme.statusGreen : AppTheme.statusRed,
           ),
         );
@@ -437,8 +438,8 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(success
-                ? 'Đã cập nhật ca làm'
-                : 'Lỗi khi cập nhật ca làm'),
+                ? context.strings.shiftUpdated
+                : context.strings.errorUpdatingShift),
             backgroundColor: success ? AppTheme.statusGreen : AppTheme.statusRed,
           ),
         );
@@ -447,19 +448,19 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
   }
 
   Future<void> _showDeleteDialog(BuildContext context, ShiftModel shift, RestaurantProvider provider) async {
-    final confirmed = await showDialog<bool>(
+      final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Xác nhận xóa'),
-        content: Text('Bạn có chắc muốn xóa ca làm của ${shift.employeeName}?'),
+        title: Text(context.strings.confirmDelete),
+        content: Text(context.strings.confirmDeleteShift(shift.employeeName)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Hủy'),
+            child: Text(context.strings.cancelButton),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Xóa', style: TextStyle(color: Colors.red)),
+            child: Text(context.strings.deleteButton, style: const TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -471,8 +472,8 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(success
-                ? 'Đã xóa ca làm'
-                : 'Lỗi khi xóa ca làm'),
+                ? context.strings.shiftDeleted
+                : context.strings.errorDeletingShift),
             backgroundColor: success ? AppTheme.statusGreen : AppTheme.statusRed,
           ),
         );

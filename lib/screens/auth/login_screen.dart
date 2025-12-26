@@ -47,7 +47,7 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!success) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Sai tên đăng nhập hoặc mật khẩu'),
+          content: Text('Incorrect username or password'),
           backgroundColor: Colors.red,
         ),
       );
@@ -82,7 +82,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Đăng nhập hệ thống',
+                        'System Login',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 14,
@@ -93,13 +93,13 @@ class _LoginScreenState extends State<LoginScreen> {
                       TextFormField(
                         controller: _usernameController,
                         decoration: const InputDecoration(
-                          labelText: 'Tên đăng nhập',
+                          labelText: 'Username',
                           prefixIcon: Icon(Icons.person),
                           border: OutlineInputBorder(),
                         ),
                         validator: (value) {
                           if (value == null || value.trim().isEmpty) {
-                            return 'Vui lòng nhập tên đăng nhập';
+                            return 'Please enter username';
                           }
                           return null;
                         },
@@ -109,7 +109,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         controller: _passwordController,
                         obscureText: _obscurePassword,
                         decoration: InputDecoration(
-                          labelText: 'Mật khẩu',
+                          labelText: 'Password',
                           prefixIcon: const Icon(Icons.lock),
                           border: const OutlineInputBorder(),
                           suffixIcon: IconButton(
@@ -125,7 +125,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         validator: (value) {
                           if (value == null || value.trim().isEmpty) {
-                            return 'Vui lòng nhập mật khẩu';
+                            return 'Please enter password';
                           }
                           return null;
                         },
@@ -175,7 +175,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   ),
                                 )
                               : const Text(
-                                  'ĐĂNG NHẬP',
+                                  'LOGIN',
                                   style: TextStyle(
                                     fontWeight: FontWeight.bold,
                                     fontSize: 16,

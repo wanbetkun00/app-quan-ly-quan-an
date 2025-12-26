@@ -41,9 +41,9 @@ class ManagerDashboardScreen extends StatelessWidget {
             tabs: [
               Tab(text: context.strings.mgrTabDashboard),
               Tab(text: context.strings.mgrTabMenu),
-              const Tab(text: 'Quản lý bàn'),
-              const Tab(text: 'Báo cáo'),
-              const Tab(text: 'Ca làm'),
+              Tab(text: context.strings.mgrTabTableManagement),
+              Tab(text: context.strings.mgrTabReports),
+              Tab(text: context.strings.mgrTabShifts),
             ],
           ),
         ),
@@ -53,11 +53,9 @@ class ManagerDashboardScreen extends StatelessWidget {
             Consumer<RestaurantProvider>(
               builder: (context, provider, _) {
                 if (provider.isLoading) {
-                  return const Center(
-                    child: CircularProgressIndicator(),
-                  );
+                  return const Center(child: CircularProgressIndicator());
                 }
-                
+
                 return RefreshIndicator(
                   onRefresh: () => provider.refreshData(),
                   child: SingleChildScrollView(
@@ -82,7 +80,7 @@ class ManagerDashboardScreen extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: 16),
-                        
+
                         // Revenue and Orders Stats
                         Row(
                           children: [
@@ -108,14 +106,14 @@ class ManagerDashboardScreen extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: 12),
-                        
+
                         // Tables Stats
                         Row(
                           children: [
                             Expanded(
                               child: _buildStatCard(
                                 context,
-                                'Tổng số bàn',
+                                context.strings.mgrTotalTables,
                                 "${provider.totalTables}",
                                 Icons.table_restaurant,
                                 AppTheme.darkGreyText,
@@ -125,7 +123,7 @@ class ManagerDashboardScreen extends StatelessWidget {
                             Expanded(
                               child: _buildStatCard(
                                 context,
-                                'Bàn trống',
+                                context.strings.mgrAvailableTables,
                                 "${provider.availableTables}",
                                 Icons.event_seat,
                                 AppTheme.statusGreen,
@@ -134,14 +132,14 @@ class ManagerDashboardScreen extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: 12),
-                        
+
                         // Menu Stats
                         Row(
                           children: [
                             Expanded(
                               child: _buildStatCard(
                                 context,
-                                'Tổng số món',
+                                context.strings.mgrTotalMenuItems,
                                 "${provider.totalMenuItems}",
                                 Icons.restaurant_menu,
                                 AppTheme.primaryOrange,
@@ -151,7 +149,7 @@ class ManagerDashboardScreen extends StatelessWidget {
                             Expanded(
                               child: _buildStatCard(
                                 context,
-                                'Món ăn / Thức uống',
+                                context.strings.mgrFoodDrinks,
                                 "${provider.foodItems} / ${provider.drinkItems}",
                                 Icons.local_dining,
                                 AppTheme.statusYellow,
@@ -160,21 +158,20 @@ class ManagerDashboardScreen extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: 24),
-                        
+
                         // Best Selling Items
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              'Món bán chạy',
+                              context.strings.mgrBestSellingDemo,
                               style: Theme.of(context).textTheme.titleMedium,
                             ),
                             if (provider.bestSellingItems.isEmpty)
                               Text(
-                                'Chưa có dữ liệu',
-                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  color: Colors.grey,
-                                ),
+                                context.strings.mgrNoDataYet,
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(color: Colors.grey),
                               ),
                           ],
                         ),
@@ -185,7 +182,7 @@ class ManagerDashboardScreen extends StatelessWidget {
                                   padding: const EdgeInsets.all(16.0),
                                   child: Center(
                                     child: Text(
-                                      'Chưa có đơn hàng hoàn thành',
+                                      context.strings.mgrNoCompletedOrders,
                                       style: TextStyle(color: Colors.grey[600]),
                                     ),
                                   ),
@@ -199,14 +196,18 @@ class ManagerDashboardScreen extends StatelessWidget {
                                       final index = indexedEntry.key;
                                       final entry = indexedEntry.value;
                                       return Card(
-                                        margin: const EdgeInsets.only(bottom: 8),
+                                        margin: const EdgeInsets.only(
+                                          bottom: 8,
+                                        ),
                                         child: ListTile(
                                           leading: Container(
                                             width: 40,
                                             height: 40,
                                             decoration: BoxDecoration(
-                                              color: AppTheme.primaryOrange.withValues(alpha: 0.1),
-                                              borderRadius: BorderRadius.circular(8),
+                                              color: AppTheme.primaryOrange
+                                                  .withValues(alpha: 0.1),
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
                                             ),
                                             child: Center(
                                               child: Text(
@@ -220,12 +221,17 @@ class ManagerDashboardScreen extends StatelessWidget {
                                           ),
                                           title: Text(entry.key.name),
                                           subtitle: Text(
-                                            entry.key.category.name.toUpperCase(),
-                                            style: const TextStyle(fontSize: 11),
+                                            entry.key.category.name
+                                                .toUpperCase(),
+                                            style: const TextStyle(
+                                              fontSize: 11,
+                                            ),
                                           ),
                                           trailing: Column(
-                                            mainAxisAlignment: MainAxisAlignment.center,
-                                            crossAxisAlignment: CrossAxisAlignment.end,
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.end,
                                             children: [
                                               Text(
                                                 '${entry.value}',
@@ -235,7 +241,7 @@ class ManagerDashboardScreen extends StatelessWidget {
                                                 ),
                                               ),
                                               Text(
-                                                'đã bán',
+                                                context.strings.soldLabel,
                                                 style: TextStyle(
                                                   fontSize: 11,
                                                   color: Colors.grey[600],
@@ -273,11 +279,13 @@ class ManagerDashboardScreen extends StatelessWidget {
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: Text(success 
-                                    ? 'Đã thêm "${result.name}" vào menu'
-                                    : 'Lỗi khi thêm món ăn'),
-                                backgroundColor: success 
-                                    ? AppTheme.statusGreen 
+                                content: Text(
+                                  success
+                                      ? 'Đã thêm "${result.name}" vào menu'
+                                      : 'Lỗi khi thêm món ăn',
+                                ),
+                                backgroundColor: success
+                                    ? AppTheme.statusGreen
                                     : AppTheme.statusRed,
                               ),
                             );
@@ -291,7 +299,10 @@ class ManagerDashboardScreen extends StatelessWidget {
                 }
                 final item = provider.menu[index - 1];
                 return Card(
-                  margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  margin: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 4,
+                  ),
                   child: ListTile(
                     leading: item.imageUrl != null
                         ? ClipRRect(
@@ -307,7 +318,9 @@ class ManagerDashboardScreen extends StatelessWidget {
                                         width: 60,
                                         height: 60,
                                         color: Colors.grey[300],
-                                        child: const Icon(Icons.image_not_supported),
+                                        child: const Icon(
+                                          Icons.image_not_supported,
+                                        ),
                                       );
                                     },
                                   )
@@ -320,7 +333,10 @@ class ManagerDashboardScreen extends StatelessWidget {
                               color: Colors.grey[200],
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            child: const Icon(Icons.restaurant_menu, color: Colors.grey),
+                            child: const Icon(
+                              Icons.restaurant_menu,
+                              color: Colors.grey,
+                            ),
                           ),
                     title: Text(item.name),
                     subtitle: Text(item.category.name.toUpperCase()),
@@ -336,18 +352,24 @@ class ManagerDashboardScreen extends StatelessWidget {
                           onPressed: () async {
                             final result = await showDialog<MenuItem>(
                               context: context,
-                              builder: (context) => AddMenuItemDialog(itemToEdit: item),
+                              builder: (context) =>
+                                  AddMenuItemDialog(itemToEdit: item),
                             );
                             if (result != null) {
-                              final success = await provider.updateMenuItem(item.id, result);
+                              final success = await provider.updateMenuItem(
+                                item.id,
+                                result,
+                              );
                               if (context.mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
-                                    content: Text(success 
-                                        ? 'Đã cập nhật "${result.name}"'
-                                        : 'Lỗi khi cập nhật món ăn'),
-                                    backgroundColor: success 
-                                        ? AppTheme.statusGreen 
+                                    content: Text(
+                                      success
+                                          ? 'Đã cập nhật "${result.name}"'
+                                          : 'Lỗi khi cập nhật món ăn',
+                                    ),
+                                    backgroundColor: success
+                                        ? AppTheme.statusGreen
                                         : AppTheme.statusRed,
                                   ),
                                 );
@@ -362,30 +384,40 @@ class ManagerDashboardScreen extends StatelessWidget {
                               context: context,
                               builder: (context) => AlertDialog(
                                 title: const Text('Xác nhận xóa'),
-                                content: Text('Bạn có chắc muốn xóa "${item.name}"?'),
+                                content: Text(
+                                  'Bạn có chắc muốn xóa "${item.name}"?',
+                                ),
                                 actions: [
                                   TextButton(
                                     onPressed: () => Navigator.pop(context),
-                                    child: const Text('Hủy'),
+                                    child: Text(context.strings.cancelButton),
                                   ),
                                   TextButton(
                                     onPressed: () async {
-                                      final success = await provider.deleteMenuItem(item.id);
+                                      final success = await provider
+                                          .deleteMenuItem(item.id);
                                       if (context.mounted) {
                                         Navigator.pop(context);
-                                        ScaffoldMessenger.of(context).showSnackBar(
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
                                           SnackBar(
-                                            content: Text(success 
-                                                ? 'Đã xóa "${item.name}"'
-                                                : 'Lỗi khi xóa món ăn'),
-                                            backgroundColor: success 
-                                                ? AppTheme.statusRed 
+                                            content: Text(
+                                              success
+                                                  ? 'Đã xóa "${item.name}"'
+                                                  : 'Lỗi khi xóa món ăn',
+                                            ),
+                                            backgroundColor: success
+                                                ? AppTheme.statusRed
                                                 : Colors.orange,
                                           ),
                                         );
                                       }
                                     },
-                                    child: const Text('Xóa', style: TextStyle(color: Colors.red)),
+                                    child: const Text(
+                                      'Xóa',
+                                      style: TextStyle(color: Colors.red),
+                                    ),
                                   ),
                                 ],
                               ),
@@ -405,7 +437,7 @@ class ManagerDashboardScreen extends StatelessWidget {
                 if (provider.isLoading) {
                   return const Center(child: CircularProgressIndicator());
                 }
-                
+
                 return RefreshIndicator(
                   onRefresh: () => provider.refreshData(),
                   child: ListView.builder(
@@ -426,11 +458,13 @@ class ManagerDashboardScreen extends StatelessWidget {
                                 if (context.mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
-                                      content: Text(success 
-                                          ? 'Đã thêm "${result.name}"'
-                                          : 'Lỗi khi thêm bàn'),
-                                      backgroundColor: success 
-                                          ? AppTheme.statusGreen 
+                                      content: Text(
+                                        success
+                                            ? 'Đã thêm "${result.name}"'
+                                            : 'Lỗi khi thêm bàn',
+                                      ),
+                                      backgroundColor: success
+                                          ? AppTheme.statusGreen
                                           : AppTheme.statusRed,
                                     ),
                                   );
@@ -438,7 +472,7 @@ class ManagerDashboardScreen extends StatelessWidget {
                               }
                             },
                             icon: const Icon(Icons.add),
-                            label: const Text('Thêm bàn mới'),
+                            label: Text(context.strings.addNewTable),
                           ),
                         );
                       }
@@ -512,7 +546,7 @@ class ManagerDashboardScreen extends StatelessWidget {
       ),
     );
   }
-  
+
   Widget _buildLocalImage(String path) {
     try {
       final file = File(path);
@@ -542,30 +576,34 @@ class ManagerDashboardScreen extends StatelessWidget {
       child: const Icon(Icons.image_not_supported),
     );
   }
-  
-  Widget _buildTableCard(BuildContext context, TableModel table, RestaurantProvider provider) {
+
+  Widget _buildTableCard(
+    BuildContext context,
+    TableModel table,
+    RestaurantProvider provider,
+  ) {
     Color statusColor;
     String statusText;
     IconData statusIcon;
-    
+
     switch (table.status) {
       case TableStatus.available:
         statusColor = AppTheme.statusGreen;
-        statusText = 'Trống';
+        statusText = context.strings.tableStatusAvailable;
         statusIcon = Icons.check_circle;
         break;
       case TableStatus.occupied:
         statusColor = AppTheme.statusRed;
-        statusText = 'Đang dùng';
+        statusText = context.strings.tableStatusOccupied;
         statusIcon = Icons.restaurant;
         break;
       case TableStatus.paymentPending:
         statusColor = AppTheme.statusYellow;
-        statusText = 'Chờ thanh toán';
+        statusText = context.strings.tableStatusPaymentPending;
         statusIcon = Icons.payment;
         break;
     }
-    
+
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: ListTile(
@@ -590,7 +628,10 @@ class ManagerDashboardScreen extends StatelessWidget {
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: statusColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(4),
@@ -608,10 +649,7 @@ class ManagerDashboardScreen extends StatelessWidget {
                   const SizedBox(width: 8),
                   Text(
                     'Order #${table.currentOrderId}',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: Colors.grey[600],
-                    ),
+                    style: TextStyle(fontSize: 11, color: Colors.grey[600]),
                   ),
                 ],
               ],
@@ -634,11 +672,13 @@ class ManagerDashboardScreen extends StatelessWidget {
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text(success 
-                              ? 'Đã cập nhật "${result.name}"'
-                              : 'Lỗi khi cập nhật bàn'),
-                          backgroundColor: success 
-                              ? AppTheme.statusGreen 
+                          content: Text(
+                            success
+                                ? 'Đã cập nhật "${result.name}"'
+                                : 'Lỗi khi cập nhật bàn',
+                          ),
+                          backgroundColor: success
+                              ? AppTheme.statusGreen
                               : AppTheme.statusRed,
                         ),
                       );
@@ -688,8 +728,12 @@ class ManagerDashboardScreen extends StatelessWidget {
       ),
     );
   }
-  
-  void _showStatusDialog(BuildContext context, TableModel table, RestaurantProvider provider) {
+
+  void _showStatusDialog(
+    BuildContext context,
+    TableModel table,
+    RestaurantProvider provider,
+  ) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -701,37 +745,44 @@ class ManagerDashboardScreen extends StatelessWidget {
             Color statusColor;
             switch (status) {
               case TableStatus.available:
-                statusText = 'Trống';
+                statusText = context.strings.tableStatusAvailable;
                 statusColor = AppTheme.statusGreen;
                 break;
               case TableStatus.occupied:
-                statusText = 'Đang dùng';
+                statusText = context.strings.tableStatusOccupied;
                 statusColor = AppTheme.statusRed;
                 break;
               case TableStatus.paymentPending:
-                statusText = 'Chờ thanh toán';
+                statusText = context.strings.tableStatusPaymentPending;
                 statusColor = AppTheme.statusYellow;
                 break;
             }
-            
+
             return ListTile(
               leading: Icon(
-                table.status == status ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                table.status == status
+                    ? Icons.radio_button_checked
+                    : Icons.radio_button_unchecked,
                 color: statusColor,
               ),
               title: Text(statusText),
               selected: table.status == status,
               onTap: () async {
                 Navigator.pop(context);
-                final success = await provider.updateTableStatus(table.id, status);
+                final success = await provider.updateTableStatus(
+                  table.id,
+                  status,
+                );
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text(success 
-                          ? 'Đã cập nhật trạng thái'
-                          : 'Lỗi khi cập nhật trạng thái'),
-                      backgroundColor: success 
-                          ? AppTheme.statusGreen 
+                      content: Text(
+                        success
+                            ? 'Đã cập nhật trạng thái'
+                            : 'Lỗi khi cập nhật trạng thái',
+                      ),
+                      backgroundColor: success
+                          ? AppTheme.statusGreen
                           : AppTheme.statusRed,
                     ),
                   );
@@ -749,13 +800,19 @@ class ManagerDashboardScreen extends StatelessWidget {
       ),
     );
   }
-  
-  void _showDeleteDialog(BuildContext context, TableModel table, RestaurantProvider provider) {
+
+  void _showDeleteDialog(
+    BuildContext context,
+    TableModel table,
+    RestaurantProvider provider,
+  ) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Xác nhận xóa'),
-        content: Text('Bạn có chắc muốn xóa "${table.name}"?\n\nLưu ý: Nếu bàn đang có đơn hàng, không thể xóa.'),
+        content: Text(
+          'Bạn có chắc muốn xóa "${table.name}"?\n\nLưu ý: Nếu bàn đang có đơn hàng, không thể xóa.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -768,24 +825,26 @@ class ManagerDashboardScreen extends StatelessWidget {
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text('Không thể xóa bàn đang có khách hoặc chờ thanh toán'),
+                      content: Text(
+                        'Không thể xóa bàn đang có khách hoặc chờ thanh toán',
+                      ),
                       backgroundColor: Colors.orange,
                     ),
                   );
                 }
                 return;
               }
-              
+
               final success = await provider.deleteTable(table.id);
               if (context.mounted) {
                 Navigator.pop(context);
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text(success 
-                        ? 'Đã xóa "${table.name}"'
-                        : 'Lỗi khi xóa bàn'),
-                    backgroundColor: success 
-                        ? AppTheme.statusRed 
+                    content: Text(
+                      success ? 'Đã xóa "${table.name}"' : 'Lỗi khi xóa bàn',
+                    ),
+                    backgroundColor: success
+                        ? AppTheme.statusRed
                         : Colors.orange,
                   ),
                 );
@@ -798,4 +857,3 @@ class ManagerDashboardScreen extends StatelessWidget {
     );
   }
 }
-
