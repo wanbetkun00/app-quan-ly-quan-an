@@ -1,234 +1,109 @@
-<<<<<<< HEAD
-# <div align="center">
+🍽️ Ứng Dụng Quản Lý Quán Ăn – TKA
+<p align="center"> <img src="https://img.shields.io/badge/Flutter-3.x-blue?style=for-the-badge&logo=flutter&logoColor=white" /> <img src="https://img.shields.io/badge/Firebase-Realtime%20Database-orange?style=for-the-badge&logo=firebase&logoColor=white" /> <img src="https://img.shields.io/badge/Platform-Android-green?style=for-the-badge&logo=android&logoColor=white" /> <img src="https://img.shields.io/badge/UI-Figma-purple?style=for-the-badge&logo=figma&logoColor=white" /> </p>
+🚀 Giới thiệu
 
-# 
+TKA – Ứng Dụng Quản Lý Quán Ăn là ứng dụng được phát triển bằng Flutter, hỗ trợ quản lý hoạt động quán ăn một cách đơn giản, trực quan và hiệu quả.
 
-# &nbsp; <img src="https://via.placeholder.com/150" alt="Logo TKA" width="120" height="120">
+Ứng dụng phù hợp với các quán ăn nhỏ và vừa, giúp quản lý:
 
-# 
+Món ăn
 
-# &nbsp; # 🍽️ TKA - Ứng Dụng Quản Lý Quán Ăn
+Đơn hàng
 
-# &nbsp; 
+Hoạt động bán hàng hằng ngày
 
-# &nbsp; \*\*Giải pháp quản lý nhà hàng toàn diện: Từ gọi món, bếp đến doanh thu\*\*
+🎯 Mục tiêu dự án
 
-# 
+Áp dụng kiến thức Flutter vào thực tế
 
-# &nbsp; \[!\[Flutter](https://img.shields.io/badge/Flutter-3.0%2B-02569B?logo=flutter)](https://flutter.dev/)
+Rèn luyện tư duy tổ chức cấu trúc dự án
 
-# &nbsp; \[!\[Dart](https://img.shields.io/badge/Dart-3.0%2B-0175C2?logo=dart)](https://dart.dev/)
+Thiết kế giao diện thân thiện, dễ sử dụng
 
-# &nbsp; \[!\[Firebase](https://img.shields.io/badge/Firebase-Backend-FFCA28?logo=firebase)](https://firebase.google.com/)
+Xây dựng nền tảng có thể mở rộng trong tương lai
 
-# &nbsp; \[!\[Status](https://img.shields.io/badge/Status-Completed%20(90%25)-success)]()
+🧠 Công nghệ sử dụng
+Thành phần	Công nghệ
+Ngôn ngữ	Dart (Flutter)
+Nền tảng	Android
+Database	Firebase Realtime Database
+Lưu trữ ảnh	❌ Không sử dụng
+Xác thực	❌ Không sử dụng
+Thiết kế UI	Figma
+📱 Chức năng chính
+🍔 Quản lý sản phẩm
 
-# 
+Thêm / sửa / xóa món ăn
 
-# </div>
+Hiển thị danh sách món ăn
 
-# 
+Cập nhật dữ liệu theo thời gian thực
 
-# ---
+🧾 Quản lý đơn hàng
 
-# 
+Tạo đơn hàng
 
-# \## 📖 Giới thiệu
+Xem chi tiết đơn
 
-# \*\*TKA Restaurant Manager\*\* là đồ án môn học (hoặc dự án cá nhân) được xây dựng bằng Flutter. Ứng dụng giúp số hóa quy trình vận hành của một quán ăn, bao gồm phân quyền nhân viên, quản lý bàn theo thời gian thực và báo cáo doanh thu tự động.
+Cập nhật trạng thái đơn hàng
 
-# 
+⚠️ Ứng dụng không có chức năng quản lý khách hàng.
 
-# \## ✨ Chức năng nổi bật
+🗂️ Cấu trúc thư mục
+lib/
+├── constants/
+├── models/
+├── providers/
+├── screens/
+├── services/
+├── theme/
+├── utils/
+├── widgets/
+├── firebase_options.dart
+└── main.dart
 
-# 
+📌 Giải thích nhanh
 
-# | Phân hệ | Tính năng chi tiết |
+constants/: Chứa các hằng số dùng chung
 
-# | :--- | :--- |
+models/: Định nghĩa model dữ liệu
 
-# | \*\*🔐 Bảo mật\*\* | Đăng nhập phân quyền (Manager/Staff), Xác thực Firebase. |
+providers/: Quản lý trạng thái (state management)
 
-# | \*\*🪑 Quản lý bàn\*\* | Trạng thái bàn Real-time (Trống/Có khách/Chờ thanh toán). |
+screens/: Các màn hình giao diện chính
 
-# | \*\*📋 Gọi món\*\* | Giao diện Order trực quan, hỗ trợ ghi chú món ăn. |
+services/: Xử lý logic, kết nối Firebase
 
-# | \*\*👨‍🍳 Bếp (KDS)\*\* | Màn hình bếp hiển thị đơn chờ, đang nấu, đã xong. |
+theme/: Màu sắc, style giao diện
 
-# | \*\*💰 Thanh toán\*\* | Tính tiền, in hóa đơn, hỗ trợ nhiều phương thức thanh toán. |
+utils/: Hàm tiện ích dùng chung
 
-# | \*\*📊 Báo cáo\*\* | Biểu đồ doanh thu ngày/tháng/năm, Top món bán chạy. |
+widgets/: Các widget tái sử dụng
 
-# 
+🎨 Thiết kế giao diện
 
-# ---
+Thiết kế bằng Figma
 
-# 
+Phong cách tối giản, dễ sử dụng
 
-# \## 📸 Hình ảnh Demo
+Tối ưu trải nghiệm người dùng trên Android
 
-# 
+🚀 Hướng phát triển trong tương lai
 
-# | Màn hình Chính | Gọi món | Màn hình Bếp |
+📊 Thống kê doanh thu theo ngày / tháng
 
-# |:---:|:---:|:---:|
+💳 Thanh toán online (VNPay, Momo…)
 
-# | <img src="LINK\_ANH\_DASHBOARD\_CUA\_BAN" width="200"> | <img src="LINK\_ANH\_ORDER\_CUA\_BAN" width="200"> | <img src="LINK\_ANH\_BEP\_CUA\_BAN" width="200"> |
+🧾 Xuất hóa đơn PDF
 
-# 
+🔐 Phân quyền nâng cao
 
-# | Quản lý Bàn | Báo cáo Doanh thu | Cài đặt |
+🎨 Cải thiện UI/UX
 
-# |:---:|:---:|:---:|
+👨‍💻 Tác giả
 
-# | <img src="LINK\_ANH\_BAN\_CUA\_BAN" width="200"> | <img src="LINK\_ANH\_BAO\_CAO\_CUA\_BAN" width="200"> | <img src="LINK\_ANH\_SETTING\_CUA\_BAN" width="200"> |
+Tên: Kun
 
-# 
+Vai trò: Flutter Developer
 
-# ---
-
-# 
-
-# \## 🛠️ Công nghệ sử dụng
-
-# \* \*\*Framework:\*\* Flutter (Mobile \& Web)
-
-# \* \*\*Ngôn ngữ:\*\* Dart
-
-# \* \*\*Backend:\*\* Firebase (Firestore, Auth)
-
-# \* \*\*State Management:\*\* Provider
-
-# \* \*\*Architecture:\*\* MVVM (Model - View - ViewModel/Service)
-
-# 
-
-# \## 🚀 Cài đặt và Chạy thử
-
-# 
-
-# 1\.  \*\*Clone dự án:\*\*
-
-# &nbsp;   ```bash
-
-# &nbsp;   git clone \[https://github.com/wanbetkun00/app-quan-ly-quan-an.git](https://github.com/wanbetkun00/app-quan-ly-quan-an.git)
-
-# &nbsp;   ```
-
-# 2\.  \*\*Cài đặt thư viện:\*\*
-
-# &nbsp;   ```bash
-
-# &nbsp;   flutter pub get
-
-# &nbsp;   ```
-
-# 3\.  \*\*Cấu hình Firebase:\*\*
-
-# &nbsp;   \* Thêm file `google-services.json` vào `android/app/`.
-
-# &nbsp;   \* Thêm file `GoogleService-Info.plist` vào `ios/Runner/` (nếu chạy iOS).
-
-# 4\.  \*\*Chạy ứng dụng:\*\*
-
-# &nbsp;   ```bash
-
-# &nbsp;   flutter run
-
-# &nbsp;   ```
-
-# 
-
-# \## 👨‍💻 Tác giả
-
-# \* \*\*Tên của bạn\*\* - \*Developer chính\* - \[Link Facebook/GitHub của bạn]
-
-# 
-
-# ---
-
-# <div align="center">
-
-# &nbsp; <sub>Đồ án môn học - Phát triển ứng dụng di động nâng cao</sub>
-
-# </div>
-
-=======
-<div align="center">
-
-  <img src="https://via.placeholder.com/150" alt="Logo TKA" width="120" height="120">
-
-  # 🍽️ TKA - Ứng Dụng Quản Lý Quán Ăn
-  
-  **Giải pháp quản lý nhà hàng toàn diện: Từ gọi món, bếp đến doanh thu**
-
-  [![Flutter](https://img.shields.io/badge/Flutter-3.0%2B-02569B?logo=flutter)](https://flutter.dev/)
-  [![Dart](https://img.shields.io/badge/Dart-3.0%2B-0175C2?logo=dart)](https://dart.dev/)
-  [![Firebase](https://img.shields.io/badge/Firebase-Backend-FFCA28?logo=firebase)](https://firebase.google.com/)
-  [![Status](https://img.shields.io/badge/Status-Completed%20(90%25)-success)]()
-
-</div>
-
----
-
-## 📖 Giới thiệu
-**TKA Restaurant Manager** là đồ án môn học (hoặc dự án cá nhân) được xây dựng bằng Flutter. Ứng dụng giúp số hóa quy trình vận hành của một quán ăn, bao gồm phân quyền nhân viên, quản lý bàn theo thời gian thực và báo cáo doanh thu tự động.
-
-## ✨ Chức năng nổi bật
-
-| Phân hệ | Tính năng chi tiết |
-| :--- | :--- |
-| **🔐 Bảo mật** | Đăng nhập phân quyền (Manager/Staff), Xác thực Firebase. |
-| **🪑 Quản lý bàn** | Trạng thái bàn Real-time (Trống/Có khách/Chờ thanh toán). |
-| **📋 Gọi món** | Giao diện Order trực quan, hỗ trợ ghi chú món ăn. |
-| **👨‍🍳 Bếp (KDS)** | Màn hình bếp hiển thị đơn chờ, đang nấu, đã xong. |
-| **💰 Thanh toán** | Tính tiền, in hóa đơn, hỗ trợ nhiều phương thức thanh toán. |
-| **📊 Báo cáo** | Biểu đồ doanh thu ngày/tháng/năm, Top món bán chạy. |
-
----
-
-## 📸 Hình ảnh Demo
-
-| Màn hình Chính | Gọi món | Màn hình Bếp |
-|:---:|:---:|:---:|
-| <img src="LINK_ANH_DASHBOARD_CUA_BAN" width="200"> | <img src="LINK_ANH_ORDER_CUA_BAN" width="200"> | <img src="LINK_ANH_BEP_CUA_BAN" width="200"> |
-
-| Quản lý Bàn | Báo cáo Doanh thu | Cài đặt |
-|:---:|:---:|:---:|
-| <img src="LINK_ANH_BAN_CUA_BAN" width="200"> | <img src="LINK_ANH_BAO_CAO_CUA_BAN" width="200"> | <img src="LINK_ANH_SETTING_CUA_BAN" width="200"> |
-
----
-
-## 🛠️ Công nghệ sử dụng
-* **Framework:** Flutter (Mobile & Web)
-* **Ngôn ngữ:** Dart
-* **Backend:** Firebase (Firestore, Auth)
-* **State Management:** Provider
-* **Architecture:** MVVM (Model - View - ViewModel/Service)
-
-## 🚀 Cài đặt và Chạy thử
-
-1.  **Clone dự án:**
-    ```bash
-    git clone [https://github.com/wanbetkun00/app-quan-ly-quan-an.git](https://github.com/wanbetkun00/app-quan-ly-quan-an.git)
-    ```
-2.  **Cài đặt thư viện:**
-    ```bash
-    flutter pub get
-    ```
-3.  **Cấu hình Firebase:**
-    * Thêm file `google-services.json` vào `android/app/`.
-    * Thêm file `GoogleService-Info.plist` vào `ios/Runner/` (nếu chạy iOS).
-4.  **Chạy ứng dụng:**
-    ```bash
-    flutter run
-    ```
-
-## 👨‍💻 Tác giả
-* **Tên của bạn** - *Developer chính* - [Link Facebook/GitHub của bạn]
-
----
-<div align="center">
-  <sub>Đồ án môn học - Phát triển ứng dụng di động nâng cao</sub>
-</div>
->>>>>>> febc185cb02d2641cd216e7a343fd7fa8554a33f
+GitHub: https://github.com/wanbetkun00
