@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/shift_model.dart';
+import '../models/employee_model.dart';
 import '../models/enums.dart';
 import '../providers/restaurant_provider.dart';
 import '../providers/app_strings.dart';
@@ -46,12 +47,12 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final provider = Provider.of<RestaurantProvider>(context, listen: false);
-
     return AlertDialog(
-      title: Text(widget.shiftToEdit == null
-          ? context.strings.addNewShift
-          : context.strings.editShift),
+      title: Text(
+        widget.shiftToEdit == null
+            ? context.strings.addNewShift
+            : context.strings.editShift,
+      ),
       content: SingleChildScrollView(
         child: Form(
           key: _formKey,
@@ -59,28 +60,141 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
             mainAxisSize: MainAxisSize.min,
             children: [
               // Employee selection
-              DropdownButtonFormField<String>(
-                value: _selectedEmployeeId,
-                decoration: InputDecoration(
-                  labelText: context.strings.employeeLabel,
-                  border: const OutlineInputBorder(),
-                ),
-                items: provider.employees.map((emp) {
-                  return DropdownMenuItem<String>(
-                    value: emp['id'],
-                    child: Text(emp['name']!),
+              Builder(
+                builder: (context) {
+                  final provider = Provider.of<RestaurantProvider>(context);
+                  return StreamBuilder<List<EmployeeModel>>(
+                    stream: provider.getEmployeesStream(),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        // Reset selection khi đang loading để tránh lỗi assertion
+                        if (_selectedEmployeeId != null) {
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            if (mounted) {
+                              setState(() {
+                                _selectedEmployeeId = null;
+                              });
+                            }
+                          });
+                        }
+                        return DropdownButtonFormField<String>(
+                          value: null,
+                          decoration: const InputDecoration(
+                            labelText: 'Đang tải nhân viên...',
+                            border: OutlineInputBorder(),
+                          ),
+                          items: [],
+                          onChanged: (_) {},
+                        );
+                      }
+
+                      if (snapshot.hasError) {
+                        // Reset selection khi có lỗi
+                        if (_selectedEmployeeId != null) {
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            if (mounted) {
+                              setState(() {
+                                _selectedEmployeeId = null;
+                              });
+                            }
+                          });
+                        }
+                        return DropdownButtonFormField<String>(
+                          value: null,
+                          decoration: const InputDecoration(
+                            labelText: 'Lỗi khi tải nhân viên',
+                            border: OutlineInputBorder(),
+                          ),
+                          items: [],
+                          onChanged: (_) {},
+                        );
+                      }
+
+                      final allEmployees = snapshot.data ?? [];
+                      // Chỉ lấy nhân viên đang hoạt động và loại bỏ duplicate IDs
+                      final employeesMap = <String, EmployeeModel>{};
+                      for (var emp in allEmployees) {
+                        if (emp.isActive && !employeesMap.containsKey(emp.id)) {
+                          employeesMap[emp.id] = emp;
+                        }
+                      }
+                      final employees = employeesMap.values.toList();
+
+                      if (employees.isEmpty) {
+                        // Reset selection nếu không có nhân viên
+                        if (_selectedEmployeeId != null) {
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            if (mounted) {
+                              setState(() {
+                                _selectedEmployeeId = null;
+                              });
+                            }
+                          });
+                        }
+                        return DropdownButtonFormField<String>(
+                          value: null,
+                          decoration: const InputDecoration(
+                            labelText: 'Chưa có nhân viên',
+                            border: OutlineInputBorder(),
+                          ),
+                          items: [],
+                          onChanged: (_) {},
+                        );
+                      }
+
+                      // Tạo danh sách items và đảm bảo không có duplicate values
+                      final items = employees.map((emp) {
+                        return DropdownMenuItem<String>(
+                          value: emp.id,
+                          child: Text(emp.name),
+                        );
+                      }).toList();
+
+                      // Đảm bảo _selectedEmployeeId có trong danh sách employees
+                      // Nếu không, set về null (khi đang edit nhưng employee không còn active)
+                      final validEmployeeId =
+                          _selectedEmployeeId != null &&
+                              employees.any(
+                                (emp) => emp.id == _selectedEmployeeId,
+                              )
+                          ? _selectedEmployeeId
+                          : null;
+
+                      // Nếu đang edit nhưng employee không còn trong danh sách, reset về null
+                      if (widget.shiftToEdit != null &&
+                          validEmployeeId == null &&
+                          _selectedEmployeeId != null) {
+                        // Employee cũ không còn active, reset selection
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (mounted) {
+                            setState(() {
+                              _selectedEmployeeId = null;
+                            });
+                          }
+                        });
+                      }
+
+                      return DropdownButtonFormField<String>(
+                        value: validEmployeeId,
+                        decoration: InputDecoration(
+                          labelText: context.strings.employeeLabel,
+                          border: const OutlineInputBorder(),
+                        ),
+                        items: items,
+                        onChanged: (value) {
+                          setState(() {
+                            _selectedEmployeeId = value;
+                          });
+                        },
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return context.strings.selectEmployeeRequired;
+                          }
+                          return null;
+                        },
+                      );
+                    },
                   );
-                }).toList(),
-                onChanged: (value) {
-                  setState(() {
-                    _selectedEmployeeId = value;
-                  });
-                },
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return context.strings.selectEmployeeRequired;
-                  }
-                  return null;
                 },
               ),
               const SizedBox(height: 16),
@@ -232,6 +346,10 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
         ElevatedButton(
           onPressed: () async {
             if (_formKey.currentState!.validate()) {
+              final provider = Provider.of<RestaurantProvider>(
+                context,
+                listen: false,
+              );
               // Check for overlapping shifts
               final overlappingShifts = await provider.checkOverlappingShifts(
                 _selectedEmployeeId!,
@@ -248,83 +366,91 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                   builder: (dialogContext) {
                     final strings = dialogContext.strings;
                     return AlertDialog(
-                    title: Row(
-                      children: [
-                        Icon(Icons.warning, color: Colors.orange[700], size: 28),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            strings.shiftOverlapWarning,
-                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      title: Row(
+                        children: [
+                          Icon(
+                            Icons.warning,
+                            color: Colors.orange[700],
+                            size: 28,
                           ),
-                        ),
-                      ],
-                    ),
-                    content: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          strings.employeeHasOverlappingShift,
-                          style: const TextStyle(fontSize: 14),
-                        ),
-                        const SizedBox(height: 12),
-                        ...overlappingShifts.map((shift) {
-                          return Container(
-                            margin: const EdgeInsets.only(bottom: 8),
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.orange[50],
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: Colors.orange[200]!),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              strings.shiftOverlapWarning,
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  '${_formatTime(shift.startTime)} - ${_formatTime(shift.endTime)}',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                                if (shift.notes != null && shift.notes!.isNotEmpty)
+                          ),
+                        ],
+                      ),
+                      content: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            strings.employeeHasOverlappingShift,
+                            style: const TextStyle(fontSize: 14),
+                          ),
+                          const SizedBox(height: 12),
+                          ...overlappingShifts.map((shift) {
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.orange[50],
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.orange[200]!),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
                                   Text(
-                                    shift.notes!,
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.grey[600],
+                                    '${_formatTime(shift.startTime)} - ${_formatTime(shift.endTime)}',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
                                     ),
                                   ),
-                              ],
+                                  if (shift.notes != null &&
+                                      shift.notes!.isNotEmpty)
+                                    Text(
+                                      shift.notes!,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey[600],
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            );
+                          }),
+                          const SizedBox(height: 12),
+                          Text(
+                            strings.continueAddingShift,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
                             ),
-                          );
-                        }),
-                        const SizedBox(height: 12),
-                        Text(
-                          strings.continueAddingShift,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
                           ),
+                        ],
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(dialogContext, false),
+                          child: Text(strings.cancelButton),
+                        ),
+                        ElevatedButton(
+                          onPressed: () => Navigator.pop(dialogContext, true),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.orange[700],
+                            foregroundColor: Colors.white,
+                          ),
+                          child: Text(strings.addAnyway),
                         ),
                       ],
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(dialogContext, false),
-                        child: Text(strings.cancelButton),
-                      ),
-                      ElevatedButton(
-                        onPressed: () => Navigator.pop(dialogContext, true),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.orange[700],
-                          foregroundColor: Colors.white,
-                        ),
-                        child: Text(strings.addAnyway),
-                      ),
-                    ],
-                  );
+                    );
                   },
                 );
 
@@ -334,23 +460,45 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
               }
 
               if (!mounted) return;
-              
-              final employee = provider.employees.firstWhere(
-                (emp) => emp['id'] == _selectedEmployeeId,
-              );
 
-              final shift = ShiftModel(
-                id: widget.shiftToEdit?.id ?? '',
-                employeeId: _selectedEmployeeId!,
-                employeeName: employee['name']!,
-                date: _selectedDate,
-                startTime: _startTime,
-                endTime: _endTime,
-                status: _status,
-                notes: _notesController.text.isEmpty ? null : _notesController.text,
-              );
+              // Get employee name from stream
+              try {
+                final employeesSnapshot = await provider
+                    .getEmployeesStream()
+                    .first
+                    .timeout(const Duration(seconds: 5));
+                final allEmployees = employeesSnapshot;
+                final employee = allEmployees.firstWhere(
+                  (emp) => emp.id == _selectedEmployeeId && emp.isActive,
+                  orElse: () => throw Exception(
+                    'Không tìm thấy nhân viên với ID: $_selectedEmployeeId',
+                  ),
+                );
 
-              Navigator.pop(context, shift);
+                final shift = ShiftModel(
+                  id: widget.shiftToEdit?.id ?? '',
+                  employeeId: _selectedEmployeeId!,
+                  employeeName: employee.name,
+                  date: _selectedDate,
+                  startTime: _startTime,
+                  endTime: _endTime,
+                  status: _status,
+                  notes: _notesController.text.isEmpty
+                      ? null
+                      : _notesController.text,
+                );
+
+                Navigator.pop(context, shift);
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Lỗi khi lấy thông tin nhân viên: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
             }
           },
           style: ElevatedButton.styleFrom(
@@ -367,4 +515,3 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
     return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
   }
 }
-

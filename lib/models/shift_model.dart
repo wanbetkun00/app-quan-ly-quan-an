@@ -29,8 +29,10 @@ class ShiftModel {
       'employeeId': employeeId,
       'employeeName': employeeName,
       'date': Timestamp.fromDate(DateTime(date.year, date.month, date.day)),
-      'startTime': '${startTime.hour.toString().padLeft(2, '0')}:${startTime.minute.toString().padLeft(2, '0')}',
-      'endTime': '${endTime.hour.toString().padLeft(2, '0')}:${endTime.minute.toString().padLeft(2, '0')}',
+      'startTime':
+          '${startTime.hour.toString().padLeft(2, '0')}:${startTime.minute.toString().padLeft(2, '0')}',
+      'endTime':
+          '${endTime.hour.toString().padLeft(2, '0')}:${endTime.minute.toString().padLeft(2, '0')}',
       'status': status.name,
       'notes': notes,
     };
@@ -38,32 +40,55 @@ class ShiftModel {
 
   // Convert from Firestore Map
   factory ShiftModel.fromFirestore(String docId, Map<String, dynamic> data) {
-    final date = (data['date'] as Timestamp).toDate();
-    final startTimeStr = data['startTime'] as String;
-    final endTimeStr = data['endTime'] as String;
-    
-    final startParts = startTimeStr.split(':');
-    final endParts = endTimeStr.split(':');
-    
-    return ShiftModel(
-      id: docId,
-      employeeId: data['employeeId'] as String,
-      employeeName: data['employeeName'] as String,
-      date: date,
-      startTime: TimeOfDay(
-        hour: int.parse(startParts[0]),
-        minute: int.parse(startParts[1]),
-      ),
-      endTime: TimeOfDay(
-        hour: int.parse(endParts[0]),
-        minute: int.parse(endParts[1]),
-      ),
-      status: ShiftStatus.values.firstWhere(
-        (e) => e.name == data['status'],
-        orElse: () => ShiftStatus.scheduled,
-      ),
-      notes: data['notes'] as String?,
-    );
+    try {
+      // Parse date
+      DateTime date;
+      if (data['date'] is Timestamp) {
+        date = (data['date'] as Timestamp).toDate();
+      } else if (data['date'] is DateTime) {
+        date = data['date'] as DateTime;
+      } else {
+        throw Exception('Invalid date format in Firestore data');
+      }
+
+      // Parse time strings
+      final startTimeStr = data['startTime'] as String? ?? '08:00';
+      final endTimeStr = data['endTime'] as String? ?? '17:00';
+
+      final startParts = startTimeStr.split(':');
+      final endParts = endTimeStr.split(':');
+
+      if (startParts.length != 2 || endParts.length != 2) {
+        throw Exception(
+          'Invalid time format: startTime=$startTimeStr, endTime=$endTimeStr',
+        );
+      }
+
+      return ShiftModel(
+        id: docId,
+        employeeId: data['employeeId'] as String? ?? '',
+        employeeName: data['employeeName'] as String? ?? '',
+        date: date,
+        startTime: TimeOfDay(
+          hour: int.parse(startParts[0]),
+          minute: int.parse(startParts[1]),
+        ),
+        endTime: TimeOfDay(
+          hour: int.parse(endParts[0]),
+          minute: int.parse(endParts[1]),
+        ),
+        status: ShiftStatus.values.firstWhere(
+          (e) => e.name == (data['status'] as String? ?? 'scheduled'),
+          orElse: () => ShiftStatus.scheduled,
+        ),
+        notes: data['notes'] as String?,
+      );
+    } catch (e) {
+      debugPrint('Error parsing shift from Firestore: $e');
+      debugPrint('Doc ID: $docId');
+      debugPrint('Data: $data');
+      rethrow;
+    }
   }
 
   // Get duration in hours
@@ -77,8 +102,8 @@ class ShiftModel {
   bool get isToday {
     final now = DateTime.now();
     return date.year == now.year &&
-           date.month == now.month &&
-           date.day == now.day;
+        date.month == now.month &&
+        date.day == now.day;
   }
 
   // Check if shift is in current week
@@ -86,9 +111,8 @@ class ShiftModel {
     final now = DateTime.now();
     final weekStart = now.subtract(Duration(days: now.weekday - 1));
     final weekEnd = weekStart.add(const Duration(days: 6));
-    
+
     return date.isAfter(weekStart.subtract(const Duration(days: 1))) &&
-           date.isBefore(weekEnd.add(const Duration(days: 1)));
+        date.isBefore(weekEnd.add(const Duration(days: 1)));
   }
 }
-

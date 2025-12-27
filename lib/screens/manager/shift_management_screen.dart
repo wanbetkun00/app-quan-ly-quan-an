@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/shift_model.dart';
+import '../../models/employee_model.dart';
 import '../../models/enums.dart';
 import '../../providers/restaurant_provider.dart';
 import '../../providers/app_strings.dart';
@@ -46,29 +47,35 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
                   icon: const Icon(Icons.chevron_left),
                   onPressed: () {
                     setState(() {
-                      _selectedWeek = _selectedWeek.subtract(const Duration(days: 7));
+                      _selectedWeek = _selectedWeek.subtract(
+                        const Duration(days: 7),
+                      );
                     });
                   },
                 ),
-                GestureDetector(
-                  onTap: () async {
-                    final picked = await showDatePicker(
-                      context: context,
-                      initialDate: _selectedWeek,
-                      firstDate: DateTime(2020),
-                      lastDate: DateTime(2030),
-                    );
-                    if (picked != null) {
-                      setState(() {
-                        _selectedWeek = picked;
-                      });
-                    }
-                  },
-                  child: Text(
-                    _getWeekRangeText(_selectedWeek),
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: _selectedWeek,
+                        firstDate: DateTime(2020),
+                        lastDate: DateTime(2030),
+                      );
+                      if (picked != null) {
+                        setState(() {
+                          _selectedWeek = picked;
+                        });
+                      }
+                    },
+                    child: Text(
+                      _getWeekRangeText(_selectedWeek),
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ),
@@ -76,7 +83,9 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
                   icon: const Icon(Icons.chevron_right),
                   onPressed: () {
                     setState(() {
-                      _selectedWeek = _selectedWeek.add(const Duration(days: 7));
+                      _selectedWeek = _selectedWeek.add(
+                        const Duration(days: 7),
+                      );
                     });
                   },
                 ),
@@ -93,26 +102,143 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
                 Text(context.strings.filterByEmployee),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: DropdownButton<String>(
-                    value: _selectedEmployeeId,
-                    isExpanded: true,
-                    hint: Text(context.strings.allEmployees),
-                    items: [
-                      DropdownMenuItem<String>(
-                        value: null,
-                        child: Text(context.strings.allEmployees),
-                      ),
-                      ...provider.employees.map((emp) {
-                        return DropdownMenuItem<String>(
-                          value: emp['id'],
-                          child: Text(emp['name'] ?? ''),
+                  child: StreamBuilder<List<EmployeeModel>>(
+                    stream: provider.getEmployeesStream(),
+                    builder: (context, snapshot) {
+                      // Hiển thị loading nếu đang tải
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return Container(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          child: const Center(
+                            child: SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          ),
                         );
-                      }),
-                    ],
-                    onChanged: (value) {
-                      setState(() {
-                        _selectedEmployeeId = value;
-                      });
+                      }
+
+                      if (snapshot.hasError) {
+                        return Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 16,
+                          ),
+                          child: Text(
+                            'Lỗi khi tải nhân viên: ${snapshot.error}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.red[600],
+                            ),
+                          ),
+                        );
+                      }
+
+                      final allEmployees = snapshot.data ?? [];
+                      // Chỉ lấy nhân viên đang hoạt động và loại bỏ duplicate IDs
+                      final employeesMap = <String, Map<String, String>>{};
+                      for (var emp in allEmployees) {
+                        if (emp.isActive && !employeesMap.containsKey(emp.id)) {
+                          employeesMap[emp.id] = {
+                            'id': emp.id,
+                            'name': emp.name,
+                          };
+                        }
+                      }
+                      final employees = employeesMap.values.toList();
+
+                      // Nếu không có nhân viên, hiển thị thông báo
+                      if (employees.isEmpty) {
+                        // Reset selection nếu không có nhân viên
+                        if (_selectedEmployeeId != null) {
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            if (mounted) {
+                              setState(() {
+                                _selectedEmployeeId = null;
+                              });
+                            }
+                          });
+                        }
+                        return Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 16,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: Colors.grey[300]!),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.info_outline,
+                                size: 16,
+                                color: Colors.grey[600],
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Chưa có nhân viên. Vui lòng thêm nhân viên trong tab "Nhân viên"',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+
+                      // Đảm bảo _selectedEmployeeId có trong danh sách employees
+                      // Logic đúng: chỉ trả về _selectedEmployeeId nếu nó không null VÀ có trong danh sách
+                      final validEmployeeId =
+                          _selectedEmployeeId != null &&
+                              employees.any(
+                                (emp) => emp['id'] == _selectedEmployeeId,
+                              )
+                          ? _selectedEmployeeId
+                          : null;
+
+                      // Reset selection nếu employee không còn trong danh sách
+                      if (_selectedEmployeeId != null &&
+                          validEmployeeId == null) {
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (mounted) {
+                            setState(() {
+                              _selectedEmployeeId = null;
+                            });
+                          }
+                        });
+                      }
+
+                      // Tạo danh sách items và đảm bảo không có duplicate values
+                      final items = [
+                        DropdownMenuItem<String>(
+                          value: null,
+                          child: Text(context.strings.allEmployees),
+                        ),
+                        ...employees.map((emp) {
+                          return DropdownMenuItem<String>(
+                            value: emp['id'],
+                            child: Text(emp['name'] ?? ''),
+                          );
+                        }),
+                      ];
+
+                      return DropdownButton<String>(
+                        value: validEmployeeId,
+                        isExpanded: true,
+                        hint: Text(context.strings.allEmployees),
+                        items: items,
+                        onChanged: (value) {
+                          setState(() {
+                            _selectedEmployeeId = value;
+                          });
+                        },
+                      );
                     },
                   ),
                 ),
@@ -131,12 +257,14 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
 
                 if (snapshot.hasError) {
                   return Center(
-                    child: Text('${context.strings.errorLoading} ${snapshot.error}'),
+                    child: Text(
+                      '${context.strings.errorLoading} ${snapshot.error}',
+                    ),
                   );
                 }
 
                 final allShifts = snapshot.data ?? [];
-                
+
                 // Filter by week
                 final weekStart = _getWeekStart(_selectedWeek);
                 final weekEnd = weekStart.add(const Duration(days: 6));
@@ -146,21 +274,31 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
                     shift.date.month,
                     shift.date.day,
                   );
-                  return shiftDate.isAfter(weekStart.subtract(const Duration(days: 1))) &&
-                         shiftDate.isBefore(weekEnd.add(const Duration(days: 1)));
+                  return shiftDate.isAfter(
+                        weekStart.subtract(const Duration(days: 1)),
+                      ) &&
+                      shiftDate.isBefore(weekEnd.add(const Duration(days: 1)));
                 }).toList();
 
                 // Filter by employee if selected
                 final filteredShifts = _selectedEmployeeId == null
                     ? weekShifts
-                    : weekShifts.where((shift) => shift.employeeId == _selectedEmployeeId).toList();
+                    : weekShifts
+                          .where(
+                            (shift) => shift.employeeId == _selectedEmployeeId,
+                          )
+                          .toList();
 
                 if (filteredShifts.isEmpty) {
                   return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.calendar_today, size: 64, color: Colors.grey[400]),
+                        Icon(
+                          Icons.calendar_today,
+                          size: 64,
+                          color: Colors.grey[400],
+                        ),
                         const SizedBox(height: 16),
                         Text(
                           context.strings.noShiftsThisWeek,
@@ -174,7 +312,11 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
                 // Group by date
                 final groupedShifts = <DateTime, List<ShiftModel>>{};
                 for (var shift in filteredShifts) {
-                  final date = DateTime(shift.date.year, shift.date.month, shift.date.day);
+                  final date = DateTime(
+                    shift.date.year,
+                    shift.date.month,
+                    shift.date.day,
+                  );
                   groupedShifts.putIfAbsent(date, () => []).add(shift);
                 }
 
@@ -190,7 +332,7 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
                     itemBuilder: (context, index) {
                       final date = sortedDates[index];
                       final shifts = groupedShifts[date]!;
-                      
+
                       return _buildDateSection(date, shifts, provider);
                     },
                   ),
@@ -203,10 +345,15 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
     );
   }
 
-  Widget _buildDateSection(DateTime date, List<ShiftModel> shifts, RestaurantProvider provider) {
-    final isToday = date.year == DateTime.now().year &&
-                    date.month == DateTime.now().month &&
-                    date.day == DateTime.now().day;
+  Widget _buildDateSection(
+    DateTime date,
+    List<ShiftModel> shifts,
+    RestaurantProvider provider,
+  ) {
+    final isToday =
+        date.year == DateTime.now().year &&
+        date.month == DateTime.now().month &&
+        date.day == DateTime.now().day;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
@@ -216,7 +363,9 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: isToday ? AppTheme.primaryOrange.withValues(alpha: 0.1) : Colors.grey[100],
+              color: isToday
+                  ? AppTheme.primaryOrange.withValues(alpha: 0.1)
+                  : Colors.grey[100],
               borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(12),
                 topRight: Radius.circular(12),
@@ -235,7 +384,10 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
                 if (isToday) ...[
                   const SizedBox(width: 8),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: AppTheme.primaryOrange,
                       borderRadius: BorderRadius.circular(12),
@@ -253,10 +405,7 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
                 const Spacer(),
                 Text(
                   '${shifts.length} ${context.strings.shifts}',
-                  style: TextStyle(
-                    color: Colors.grey[600],
-                    fontSize: 14,
-                  ),
+                  style: TextStyle(color: Colors.grey[600], fontSize: 14),
                 ),
               ],
             ),
@@ -267,7 +416,11 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
     );
   }
 
-  Widget _buildShiftTile(BuildContext context, ShiftModel shift, RestaurantProvider provider) {
+  Widget _buildShiftTile(
+    BuildContext context,
+    ShiftModel shift,
+    RestaurantProvider provider,
+  ) {
     Color statusColor;
     String statusText;
     IconData statusIcon;
@@ -310,16 +463,19 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
           const SizedBox(height: 4),
           Row(
             children: [
-              Icon(Icons.access_time, size: 14, color: Colors.grey[600]),
+              Icon(Icons.access_time, size: 12, color: Colors.grey[600]),
               const SizedBox(width: 4),
-              Text(
-                '${_formatTime(shift.startTime)} - ${_formatTime(shift.endTime)}',
-                style: TextStyle(fontSize: 13, color: Colors.grey[700]),
+              Flexible(
+                child: Text(
+                  '${_formatTime(shift.startTime)} - ${_formatTime(shift.endTime)}',
+                  style: TextStyle(fontSize: 11, color: Colors.grey[700]),
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 8),
               Text(
                 '(${shift.durationHours.toStringAsFixed(1)}h)',
-                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                style: TextStyle(fontSize: 11, color: Colors.grey[600]),
               ),
             ],
           ),
@@ -327,7 +483,11 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
             const SizedBox(height: 4),
             Text(
               shift.notes!,
-              style: TextStyle(fontSize: 12, color: Colors.grey[600], fontStyle: FontStyle.italic),
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey[600],
+                fontStyle: FontStyle.italic,
+              ),
             ),
           ],
         ],
@@ -407,7 +567,10 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
     return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
   }
 
-  Future<void> _showAddShiftDialog(BuildContext context, RestaurantProvider provider) async {
+  Future<void> _showAddShiftDialog(
+    BuildContext context,
+    RestaurantProvider provider,
+  ) async {
     final result = await showDialog<ShiftModel>(
       context: context,
       builder: (context) => const AddShiftDialog(),
@@ -417,17 +580,25 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(success
-                ? context.strings.shiftAddedFor(result.employeeName)
-                : context.strings.errorAddingShift),
-            backgroundColor: success ? AppTheme.statusGreen : AppTheme.statusRed,
+            content: Text(
+              success
+                  ? context.strings.shiftAddedFor(result.employeeName)
+                  : context.strings.errorAddingShift,
+            ),
+            backgroundColor: success
+                ? AppTheme.statusGreen
+                : AppTheme.statusRed,
           ),
         );
       }
     }
   }
 
-  Future<void> _showEditShiftDialog(BuildContext context, ShiftModel shift, RestaurantProvider provider) async {
+  Future<void> _showEditShiftDialog(
+    BuildContext context,
+    ShiftModel shift,
+    RestaurantProvider provider,
+  ) async {
     final result = await showDialog<ShiftModel>(
       context: context,
       builder: (context) => AddShiftDialog(shiftToEdit: shift),
@@ -437,18 +608,26 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(success
-                ? context.strings.shiftUpdated
-                : context.strings.errorUpdatingShift),
-            backgroundColor: success ? AppTheme.statusGreen : AppTheme.statusRed,
+            content: Text(
+              success
+                  ? context.strings.shiftUpdated
+                  : context.strings.errorUpdatingShift,
+            ),
+            backgroundColor: success
+                ? AppTheme.statusGreen
+                : AppTheme.statusRed,
           ),
         );
       }
     }
   }
 
-  Future<void> _showDeleteDialog(BuildContext context, ShiftModel shift, RestaurantProvider provider) async {
-      final confirmed = await showDialog<bool>(
+  Future<void> _showDeleteDialog(
+    BuildContext context,
+    ShiftModel shift,
+    RestaurantProvider provider,
+  ) async {
+    final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(context.strings.confirmDelete),
@@ -460,7 +639,10 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: Text(context.strings.deleteButton, style: const TextStyle(color: Colors.red)),
+            child: Text(
+              context.strings.deleteButton,
+              style: const TextStyle(color: Colors.red),
+            ),
           ),
         ],
       ),
@@ -471,14 +653,17 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(success
-                ? context.strings.shiftDeleted
-                : context.strings.errorDeletingShift),
-            backgroundColor: success ? AppTheme.statusGreen : AppTheme.statusRed,
+            content: Text(
+              success
+                  ? context.strings.shiftDeleted
+                  : context.strings.errorDeletingShift,
+            ),
+            backgroundColor: success
+                ? AppTheme.statusGreen
+                : AppTheme.statusRed,
           ),
         );
       }
     }
   }
 }
-

@@ -130,29 +130,6 @@ class _LoginScreenState extends State<LoginScreen> {
                           return null;
                         },
                       ),
-                      const SizedBox(height: 16),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: AppTheme.lightGreyBg,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Tài khoản demo:',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
-                              ),
-                            ),
-                            SizedBox(height: 4),
-                            Text('Nhân viên:  staff / 1234'),
-                            Text('Quản lý:   manager / 1234'),
-                          ],
-                        ),
-                      ),
                       const SizedBox(height: 24),
                       SizedBox(
                         height: 48,

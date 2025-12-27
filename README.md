@@ -1,16 +1,154 @@
-# do_an_mon_quanlyquanan
+# <div align="center">
 
-A new Flutter project.
+# 
 
-## Getting Started
+# &nbsp; <img src="https://via.placeholder.com/150" alt="Logo TKA" width="120" height="120">
 
-This project is a starting point for a Flutter application.
+# 
 
-A few resources to get you started if this is your first Flutter project:
+# &nbsp; # 🍽️ TKA - Ứng Dụng Quản Lý Quán Ăn
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+# &nbsp; 
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+# &nbsp; \*\*Giải pháp quản lý nhà hàng toàn diện: Từ gọi món, bếp đến doanh thu\*\*
+
+# 
+
+# &nbsp; \[!\[Flutter](https://img.shields.io/badge/Flutter-3.0%2B-02569B?logo=flutter)](https://flutter.dev/)
+
+# &nbsp; \[!\[Dart](https://img.shields.io/badge/Dart-3.0%2B-0175C2?logo=dart)](https://dart.dev/)
+
+# &nbsp; \[!\[Firebase](https://img.shields.io/badge/Firebase-Backend-FFCA28?logo=firebase)](https://firebase.google.com/)
+
+# &nbsp; \[!\[Status](https://img.shields.io/badge/Status-Completed%20(90%25)-success)]()
+
+# 
+
+# </div>
+
+# 
+
+# ---
+
+# 
+
+# \## 📖 Giới thiệu
+
+# \*\*TKA Restaurant Manager\*\* là đồ án môn học (hoặc dự án cá nhân) được xây dựng bằng Flutter. Ứng dụng giúp số hóa quy trình vận hành của một quán ăn, bao gồm phân quyền nhân viên, quản lý bàn theo thời gian thực và báo cáo doanh thu tự động.
+
+# 
+
+# \## ✨ Chức năng nổi bật
+
+# 
+
+# | Phân hệ | Tính năng chi tiết |
+
+# | :--- | :--- |
+
+# | \*\*🔐 Bảo mật\*\* | Đăng nhập phân quyền (Manager/Staff), Xác thực Firebase. |
+
+# | \*\*🪑 Quản lý bàn\*\* | Trạng thái bàn Real-time (Trống/Có khách/Chờ thanh toán). |
+
+# | \*\*📋 Gọi món\*\* | Giao diện Order trực quan, hỗ trợ ghi chú món ăn. |
+
+# | \*\*👨‍🍳 Bếp (KDS)\*\* | Màn hình bếp hiển thị đơn chờ, đang nấu, đã xong. |
+
+# | \*\*💰 Thanh toán\*\* | Tính tiền, in hóa đơn, hỗ trợ nhiều phương thức thanh toán. |
+
+# | \*\*📊 Báo cáo\*\* | Biểu đồ doanh thu ngày/tháng/năm, Top món bán chạy. |
+
+# 
+
+# ---
+
+# 
+
+# \## 📸 Hình ảnh Demo
+
+# 
+
+# | Màn hình Chính | Gọi món | Màn hình Bếp |
+
+# |:---:|:---:|:---:|
+
+# | <img src="LINK\_ANH\_DASHBOARD\_CUA\_BAN" width="200"> | <img src="LINK\_ANH\_ORDER\_CUA\_BAN" width="200"> | <img src="LINK\_ANH\_BEP\_CUA\_BAN" width="200"> |
+
+# 
+
+# | Quản lý Bàn | Báo cáo Doanh thu | Cài đặt |
+
+# |:---:|:---:|:---:|
+
+# | <img src="LINK\_ANH\_BAN\_CUA\_BAN" width="200"> | <img src="LINK\_ANH\_BAO\_CAO\_CUA\_BAN" width="200"> | <img src="LINK\_ANH\_SETTING\_CUA\_BAN" width="200"> |
+
+# 
+
+# ---
+
+# 
+
+# \## 🛠️ Công nghệ sử dụng
+
+# \* \*\*Framework:\*\* Flutter (Mobile \& Web)
+
+# \* \*\*Ngôn ngữ:\*\* Dart
+
+# \* \*\*Backend:\*\* Firebase (Firestore, Auth)
+
+# \* \*\*State Management:\*\* Provider
+
+# \* \*\*Architecture:\*\* MVVM (Model - View - ViewModel/Service)
+
+# 
+
+# \## 🚀 Cài đặt và Chạy thử
+
+# 
+
+# 1\.  \*\*Clone dự án:\*\*
+
+# &nbsp;   ```bash
+
+# &nbsp;   git clone \[https://github.com/wanbetkun00/app-quan-ly-quan-an.git](https://github.com/wanbetkun00/app-quan-ly-quan-an.git)
+
+# &nbsp;   ```
+
+# 2\.  \*\*Cài đặt thư viện:\*\*
+
+# &nbsp;   ```bash
+
+# &nbsp;   flutter pub get
+
+# &nbsp;   ```
+
+# 3\.  \*\*Cấu hình Firebase:\*\*
+
+# &nbsp;   \* Thêm file `google-services.json` vào `android/app/`.
+
+# &nbsp;   \* Thêm file `GoogleService-Info.plist` vào `ios/Runner/` (nếu chạy iOS).
+
+# 4\.  \*\*Chạy ứng dụng:\*\*
+
+# &nbsp;   ```bash
+
+# &nbsp;   flutter run
+
+# &nbsp;   ```
+
+# 
+
+# \## 👨‍💻 Tác giả
+
+# \* \*\*Tên của bạn\*\* - \*Developer chính\* - \[Link Facebook/GitHub của bạn]
+
+# 
+
+# ---
+
+# <div align="center">
+
+# &nbsp; <sub>Đồ án môn học - Phát triển ứng dụng di động nâng cao</sub>
+
+# </div>
+

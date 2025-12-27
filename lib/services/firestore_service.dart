@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/models.dart';
 import '../models/report_model.dart';
 import '../models/shift_model.dart';
+import '../models/employee_model.dart';
 
 class FirestoreService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -14,6 +15,7 @@ class FirestoreService {
   static const String reportsCollection = 'reports';
   static const String shiftsCollection = 'shifts';
   static const String paymentsCollection = 'payments';
+  static const String employeesCollection = 'employees';
 
   // ========== MENU ITEMS ==========
 
@@ -184,7 +186,7 @@ class FirestoreService {
 
   // ========== ORDERS ==========
 
-  // Stream active orders (not completed) - requires menu
+  // Stream active orders (not completed and not paid) - requires menu
   Stream<List<OrderModel>> getActiveOrdersStream(List<MenuItem> menu) {
     return _firestore
         .collection(ordersCollection)
@@ -193,12 +195,21 @@ class FirestoreService {
         .snapshots()
         .map(
           (snapshot) => snapshot.docs
-              .map((doc) => _orderFromFirestore(doc.id, doc.data(), menu))
+              .map((doc) {
+                final data = doc.data();
+                // Exclude paid orders
+                if (data['isPaid'] == true) {
+                  return null;
+                }
+                return _orderFromFirestore(doc.id, data, menu);
+              })
+              .where((order) => order != null)
+              .cast<OrderModel>()
               .toList(),
         );
   }
 
-  // Get active orders once - requires menu
+  // Get active orders once (not completed and not paid) - requires menu
   Future<List<OrderModel>> getActiveOrders(List<MenuItem> menu) async {
     final snapshot = await _firestore
         .collection(ordersCollection)
@@ -206,7 +217,16 @@ class FirestoreService {
         .orderBy('timestamp', descending: true)
         .get();
     return snapshot.docs
-        .map((doc) => _orderFromFirestore(doc.id, doc.data(), menu))
+        .map((doc) {
+          final data = doc.data();
+          // Exclude paid orders
+          if (data['isPaid'] == true) {
+            return null;
+          }
+          return _orderFromFirestore(doc.id, data, menu);
+        })
+        .where((order) => order != null)
+        .cast<OrderModel>()
         .toList();
   }
 
@@ -247,12 +267,13 @@ class FirestoreService {
   }
 
   // Get completed orders for a table - requires menu
+  // Only returns orders that are completed but not yet paid
   Future<List<OrderModel>> getCompletedOrdersForTable(
     int tableId,
     List<MenuItem> menu,
   ) async {
     try {
-      // Query without orderBy first to avoid index requirement
+      // Query completed orders that are not paid yet
       final snapshot = await _firestore
           .collection(ordersCollection)
           .where('tableId', isEqualTo: tableId)
@@ -260,7 +281,16 @@ class FirestoreService {
           .get();
 
       final orders = snapshot.docs
-          .map((doc) => _orderFromFirestore(doc.id, doc.data(), menu))
+          .map((doc) {
+            final data = doc.data();
+            // Only include orders that are not paid
+            if (data['isPaid'] == true) {
+              return null;
+            }
+            return _orderFromFirestore(doc.id, data, menu);
+          })
+          .where((order) => order != null)
+          .cast<OrderModel>()
           .toList();
 
       // Sort manually by timestamp
@@ -276,8 +306,16 @@ class FirestoreService {
             .get();
 
         final orders = snapshot.docs
-            .map((doc) => _orderFromFirestore(doc.id, doc.data(), menu))
-            .where((order) => order.status == OrderStatus.completed)
+            .map((doc) {
+              final data = doc.data();
+              // Only include completed orders that are not paid
+              if (data['status'] != 'completed' || data['isPaid'] == true) {
+                return null;
+              }
+              return _orderFromFirestore(doc.id, data, menu);
+            })
+            .where((order) => order != null)
+            .cast<OrderModel>()
             .toList();
 
         orders.sort((a, b) => b.timestamp.compareTo(a.timestamp));
@@ -357,34 +395,89 @@ class FirestoreService {
     required String paymentMethod,
     required List<int> orderIds,
   }) async {
-    await _firestore.collection(paymentsCollection).add({
-      'tableId': tableId,
-      'totalAmount': totalAmount,
-      'discountPercent': discountPercent,
-      'paymentMethod': paymentMethod,
-      'orderIds': orderIds,
-      'timestamp': FieldValue.serverTimestamp(),
-    });
+    try {
+      await _firestore.collection(paymentsCollection).add({
+        'tableId': tableId,
+        'totalAmount': totalAmount,
+        'discountPercent': discountPercent,
+        'paymentMethod': paymentMethod,
+        'orderIds': orderIds,
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      throw Exception('Lỗi khi lưu thông tin thanh toán: $e');
+    }
   }
 
   // Mark orders as paid
+  // Firestore whereIn has a limit of 10 items, so we need to split queries
   Future<void> markOrdersAsPaid(List<int> orderIds) async {
     if (orderIds.isEmpty) return;
 
-    final batch = _firestore.batch();
-    final now = Timestamp.now();
+    try {
+      final now = Timestamp.now();
+      const int whereInLimit = 10; // Firestore limit for whereIn
 
-    // Query all orders at once
-    final snapshot = await _firestore
-        .collection(ordersCollection)
-        .where('id', whereIn: orderIds)
-        .get();
+      // Split orderIds into chunks of 10
+      for (int i = 0; i < orderIds.length; i += whereInLimit) {
+        final chunk = orderIds.skip(i).take(whereInLimit).toList();
+        final batch = _firestore.batch();
 
-    for (final doc in snapshot.docs) {
-      batch.update(doc.reference, {'paidAt': now, 'isPaid': true});
+        // Query orders in this chunk
+        final snapshot = await _firestore
+            .collection(ordersCollection)
+            .where('id', whereIn: chunk)
+            .get();
+
+        // Update each order in batch
+        for (final doc in snapshot.docs) {
+          batch.update(doc.reference, {'paidAt': now, 'isPaid': true});
+        }
+
+        // Commit this batch
+        if (snapshot.docs.isNotEmpty) {
+          await batch.commit();
+        }
+      }
+    } catch (e) {
+      throw Exception('Lỗi khi đánh dấu đơn hàng đã thanh toán: $e');
     }
+  }
 
-    await batch.commit();
+  // Delete paid orders for a table
+  // Firestore whereIn has a limit of 10 items, so we need to split queries
+  Future<void> deletePaidOrdersForTable(int tableId, List<int> orderIds) async {
+    if (orderIds.isEmpty) return;
+
+    try {
+      const int whereInLimit = 10; // Firestore limit for whereIn
+
+      // Split orderIds into chunks of 10
+      for (int i = 0; i < orderIds.length; i += whereInLimit) {
+        final chunk = orderIds.skip(i).take(whereInLimit).toList();
+        final batch = _firestore.batch();
+
+        // Query paid orders in this chunk for this table
+        final snapshot = await _firestore
+            .collection(ordersCollection)
+            .where('tableId', isEqualTo: tableId)
+            .where('id', whereIn: chunk)
+            .where('isPaid', isEqualTo: true)
+            .get();
+
+        // Delete each paid order
+        for (final doc in snapshot.docs) {
+          batch.delete(doc.reference);
+        }
+
+        // Commit this batch
+        if (snapshot.docs.isNotEmpty) {
+          await batch.commit();
+        }
+      }
+    } catch (e) {
+      throw Exception('Lỗi khi xóa đơn hàng đã thanh toán: $e');
+    }
   }
 
   // ========== REPORTS ==========
@@ -586,18 +679,47 @@ class FirestoreService {
 
   // Add shift
   Future<String> addShift(ShiftModel shift) async {
-    final docRef = await _firestore
-        .collection(shiftsCollection)
-        .add(shift.toFirestore());
-    return docRef.id;
+    try {
+      if (shift.employeeId.isEmpty) {
+        throw Exception('Employee ID is empty. Cannot add shift.');
+      }
+      final shiftData = shift.toFirestore();
+      debugPrint(
+        'Adding shift: employeeId=${shift.employeeId}, date=${shift.date}',
+      );
+      final docRef = await _firestore
+          .collection(shiftsCollection)
+          .add(shiftData);
+      debugPrint('Shift added successfully with ID: ${docRef.id}');
+      return docRef.id;
+    } catch (e) {
+      debugPrint('Error adding shift: $e');
+      rethrow;
+    }
   }
 
   // Update shift
   Future<void> updateShift(ShiftModel shift) async {
-    await _firestore
-        .collection(shiftsCollection)
-        .doc(shift.id)
-        .update(shift.toFirestore());
+    try {
+      if (shift.id.isEmpty) {
+        throw Exception('Shift ID is empty. Cannot update shift.');
+      }
+      if (shift.employeeId.isEmpty) {
+        throw Exception('Employee ID is empty. Cannot update shift.');
+      }
+      final shiftData = shift.toFirestore();
+      debugPrint(
+        'Updating shift: id=${shift.id}, employeeId=${shift.employeeId}',
+      );
+      await _firestore
+          .collection(shiftsCollection)
+          .doc(shift.id)
+          .update(shiftData);
+      debugPrint('Shift updated successfully: ${shift.id}');
+    } catch (e) {
+      debugPrint('Error updating shift ${shift.id}: $e');
+      rethrow;
+    }
   }
 
   // Delete shift
@@ -688,5 +810,122 @@ class FirestoreService {
     // Check if time ranges overlap
     // Two ranges overlap if: start1 < end2 && start2 < end1
     return start1Minutes < end2Minutes && start2Minutes < end1Minutes;
+  }
+
+  // ========== EMPLOYEES ==========
+
+  // Stream all employees
+  Stream<List<EmployeeModel>> getEmployeesStream() {
+    return _firestore
+        .collection(employeesCollection)
+        .snapshots()
+        .map((snapshot) {
+          debugPrint('Employees stream: ${snapshot.docs.length} documents');
+          final employees = snapshot.docs
+              .map((doc) {
+                try {
+                  final data = doc.data();
+                  debugPrint(
+                    'Employee doc ${doc.id}: name=${data['name']}, isActive=${data['isActive']}',
+                  );
+                  return EmployeeModel.fromFirestore(doc.id, data);
+                } catch (e) {
+                  debugPrint('Error parsing employee ${doc.id}: $e');
+                  return null;
+                }
+              })
+              .where((emp) => emp != null)
+              .cast<EmployeeModel>()
+              .toList();
+          // Sort by name locally
+          employees.sort((a, b) => a.name.compareTo(b.name));
+          debugPrint('Parsed ${employees.length} employees');
+          return employees;
+        })
+        .handleError((error) {
+          debugPrint('Error in getEmployeesStream: $error');
+          return <EmployeeModel>[];
+        });
+  }
+
+  // Get employees once
+  Future<List<EmployeeModel>> getEmployees() async {
+    try {
+      final snapshot = await _firestore.collection(employeesCollection).get();
+      debugPrint('getEmployees: ${snapshot.docs.length} documents found');
+      final employees = snapshot.docs
+          .map((doc) {
+            try {
+              final data = doc.data();
+              debugPrint(
+                'Employee doc ${doc.id}: name=${data['name']}, isActive=${data['isActive']}',
+              );
+              return EmployeeModel.fromFirestore(doc.id, data);
+            } catch (e) {
+              debugPrint('Error parsing employee ${doc.id}: $e');
+              return null;
+            }
+          })
+          .where((emp) => emp != null)
+          .cast<EmployeeModel>()
+          .toList();
+      // Sort by name locally
+      employees.sort((a, b) => a.name.compareTo(b.name));
+      debugPrint('getEmployees: parsed ${employees.length} employees');
+      return employees;
+    } catch (e) {
+      debugPrint('Error getting employees: $e');
+      return [];
+    }
+  }
+
+  // Add employee
+  Future<String> addEmployee(EmployeeModel employee) async {
+    final docRef = await _firestore
+        .collection(employeesCollection)
+        .add(employee.toFirestore());
+    return docRef.id;
+  }
+
+  // Update employee
+  Future<void> updateEmployee(EmployeeModel employee) async {
+    try {
+      if (employee.id.isEmpty) {
+        throw Exception('Employee ID is empty. Cannot update employee.');
+      }
+      await _firestore
+          .collection(employeesCollection)
+          .doc(employee.id)
+          .update(employee.toFirestore());
+      debugPrint('Employee updated successfully: ${employee.id}');
+    } catch (e) {
+      debugPrint('Error updating employee ${employee.id}: $e');
+      rethrow;
+    }
+  }
+
+  // Delete employee
+  Future<void> deleteEmployee(String employeeId) async {
+    await _firestore.collection(employeesCollection).doc(employeeId).delete();
+  }
+
+  // Get employee by username
+  Future<EmployeeModel?> getEmployeeByUsername(String username) async {
+    try {
+      final snapshot = await _firestore
+          .collection(employeesCollection)
+          .where('username', isEqualTo: username)
+          .limit(1)
+          .get();
+      if (snapshot.docs.isNotEmpty) {
+        return EmployeeModel.fromFirestore(
+          snapshot.docs.first.id,
+          snapshot.docs.first.data(),
+        );
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
   }
 }

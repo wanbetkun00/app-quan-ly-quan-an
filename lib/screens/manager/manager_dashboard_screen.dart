@@ -11,6 +11,7 @@ import '../../widgets/add_menu_item_dialog.dart';
 import '../../widgets/add_table_dialog.dart';
 import 'reports_screen.dart';
 import 'shift_management_screen.dart';
+import 'employee_management_screen.dart';
 
 class ManagerDashboardScreen extends StatelessWidget {
   const ManagerDashboardScreen({super.key});
@@ -21,7 +22,7 @@ class ManagerDashboardScreen extends StatelessWidget {
     final langProvider = Provider.of<LanguageProvider>(context);
 
     return DefaultTabController(
-      length: 5,
+      length: 6,
       child: Scaffold(
         appBar: AppBar(
           title: Text(context.strings.managerTitle),
@@ -44,6 +45,7 @@ class ManagerDashboardScreen extends StatelessWidget {
               Tab(text: context.strings.mgrTabTableManagement),
               Tab(text: context.strings.mgrTabReports),
               Tab(text: context.strings.mgrTabShifts),
+              const Tab(text: 'Nhân viên'),
             ],
           ),
         ),
@@ -81,19 +83,9 @@ class ManagerDashboardScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 16),
 
-                        // Revenue and Orders Stats
+                        // Orders Stats
                         Row(
                           children: [
-                            Expanded(
-                              child: _buildStatCard(
-                                context,
-                                context.strings.mgrDailyRevenue,
-                                provider.dailyRevenue.toVnd(),
-                                Icons.attach_money,
-                                AppTheme.statusGreen,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
                             Expanded(
                               child: _buildStatCard(
                                 context,
@@ -489,6 +481,9 @@ class ManagerDashboardScreen extends StatelessWidget {
 
             // 5. Shift Management Tab
             const ShiftManagementScreen(),
+
+            // 6. Employee Management Tab
+            const EmployeeManagementScreen(),
           ],
         ),
       ),
@@ -645,13 +640,6 @@ class ManagerDashboardScreen extends StatelessWidget {
                     ),
                   ),
                 ),
-                if (table.currentOrderId != null) ...[
-                  const SizedBox(width: 8),
-                  Text(
-                    'Order #${table.currentOrderId}',
-                    style: TextStyle(fontSize: 11, color: Colors.grey[600]),
-                  ),
-                ],
               ],
             ),
           ],

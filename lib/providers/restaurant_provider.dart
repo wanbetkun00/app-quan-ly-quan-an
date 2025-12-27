@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/models.dart';
 import '../models/report_model.dart';
 import '../models/shift_model.dart';
+import '../models/employee_model.dart';
 import '../theme/app_theme.dart';
 import '../services/firestore_service.dart';
 import '../widgets/payment_dialog.dart';
@@ -13,6 +14,7 @@ class RestaurantProvider extends ChangeNotifier {
   List<TableModel> tables = [];
   List<MenuItem> menu = [];
   List<OrderModel> activeOrders = [];
+  List<EmployeeModel> _employees = [];
 
   bool _isLoading = true;
   bool get isLoading => _isLoading;
@@ -23,6 +25,7 @@ class RestaurantProvider extends ChangeNotifier {
   StreamSubscription<List<MenuItem>>? _menuSubscription;
   StreamSubscription<List<TableModel>>? _tablesSubscription;
   StreamSubscription<List<OrderModel>>? _ordersSubscription;
+  StreamSubscription<List<EmployeeModel>>? _employeesSubscription;
 
   RestaurantProvider() {
     _initializeData();
@@ -36,6 +39,8 @@ class RestaurantProvider extends ChangeNotifier {
       menu = await _firestoreService.getMenu();
       tables = await _firestoreService.getTables();
       activeOrders = await _firestoreService.getActiveOrders(menu);
+      _employees = await _firestoreService.getEmployees();
+      debugPrint('Initial employees loaded: ${_employees.length} employees');
 
       // Setup real-time listeners
       _setupListeners();
@@ -84,6 +89,20 @@ class RestaurantProvider extends ChangeNotifier {
 
     // Orders stream listener - needs to update when menu changes
     _updateOrdersListener();
+
+    // Employees stream listener
+    _employeesSubscription = _firestoreService.getEmployeesStream().listen(
+      (employees) {
+        _employees = employees;
+        debugPrint('Employees loaded: ${employees.length} employees');
+        notifyListeners();
+      },
+      onError: (error) {
+        debugPrint('Error loading employees: $error');
+        _errorMessage = 'Lỗi khi đồng bộ nhân viên: $error';
+        notifyListeners();
+      },
+    );
   }
 
   void _updateOrdersListener() {
@@ -125,9 +144,8 @@ class RestaurantProvider extends ChangeNotifier {
 
           if (tableOrders.isEmpty) {
             // No active orders for this table
-            // If table is occupied (not paymentPending), reset to available
-            // If table is paymentPending, keep it (order might be completed but not paid yet)
-            if (table.status == TableStatus.occupied) {
+            // Reset to available regardless of current status (orders have been paid and deleted)
+            if (table.status != TableStatus.available) {
               table.status = TableStatus.available;
               table.currentOrderId = null;
               hasChanges = true;
@@ -139,7 +157,6 @@ class RestaurantProvider extends ChangeNotifier {
                 debugPrint('Error syncing table ${table.id}: $e');
               }
             }
-            // If status is paymentPending, keep it as is (order completed but not paid)
           } else {
             // There are other active orders for this table, update currentOrderId
             final latestOrder = tableOrders.first;
@@ -246,6 +263,7 @@ class RestaurantProvider extends ChangeNotifier {
     _menuSubscription?.cancel();
     _tablesSubscription?.cancel();
     _ordersSubscription?.cancel();
+    _employeesSubscription?.cancel();
     super.dispose();
   }
 
@@ -419,6 +437,9 @@ class RestaurantProvider extends ChangeNotifier {
       // Mark orders as paid
       await _firestoreService.markOrdersAsPaid(orderIds);
 
+      // Delete paid orders for this table to clear old data
+      await _firestoreService.deletePaidOrdersForTable(tableId, orderIds);
+
       // Update table status to available
       tables[tableIndex].status = TableStatus.available;
       tables[tableIndex].currentOrderId = null;
@@ -429,8 +450,26 @@ class RestaurantProvider extends ChangeNotifier {
       // Notify listeners immediately for instant UI update
       notifyListeners();
 
-      // Force refresh tables and orders to ensure consistency
-      await Future.wait([_refreshTables(), _refreshOrders()]);
+      // Refresh orders to remove deleted paid orders from local list
+      await _refreshOrders();
+
+      // Refresh tables but skip sync to preserve the status we just set
+      // The stream listener will handle any further updates
+      try {
+        final updatedTables = await _firestoreService.getTables();
+        // Preserve the status we just set for this table
+        final updatedTableIndex = updatedTables.indexWhere(
+          (t) => t.id == tableId,
+        );
+        if (updatedTableIndex != -1) {
+          updatedTables[updatedTableIndex].status = TableStatus.available;
+          updatedTables[updatedTableIndex].currentOrderId = null;
+        }
+        tables = updatedTables;
+        notifyListeners();
+      } catch (e) {
+        // Silent fail - stream will handle updates
+      }
 
       return true;
     } catch (e) {
@@ -771,13 +810,15 @@ class RestaurantProvider extends ChangeNotifier {
 
   // ========== SHIFTS ==========
 
-  // Demo employees list (có thể mở rộng để lấy từ Firebase)
-  List<Map<String, String>> get employees => [
-    {'id': 'staff', 'name': 'Nhân viên phục vụ'},
-    {'id': 'nv001', 'name': 'Nguyễn Văn A'},
-    {'id': 'nv002', 'name': 'Trần Thị B'},
-    {'id': 'nv003', 'name': 'Lê Văn C'},
-  ];
+  // Employees list from Firestore (chỉ lấy nhân viên đang hoạt động)
+  List<Map<String, String>> get employees {
+    final activeEmployees = _employees
+        .where((emp) => emp.isActive) // Chỉ lấy nhân viên đang hoạt động
+        .map((emp) => {'id': emp.id, 'name': emp.name})
+        .toList();
+    debugPrint('Active employees: ${activeEmployees.length}');
+    return activeEmployees;
+  }
 
   // Get shifts stream
   Stream<List<ShiftModel>> getShiftsStream() {
@@ -897,6 +938,71 @@ class RestaurantProvider extends ChangeNotifier {
       _errorMessage = 'Lỗi khi kiểm tra ca làm trùng: $e';
       notifyListeners();
       return [];
+    }
+  }
+
+  // ========== EMPLOYEES ==========
+
+  // Get employees stream
+  Stream<List<EmployeeModel>> getEmployeesStream() {
+    return _firestoreService.getEmployeesStream();
+  }
+
+  // Get all employees (once)
+  Future<List<EmployeeModel>> getEmployees() async {
+    try {
+      return await _firestoreService.getEmployees();
+    } catch (e) {
+      _errorMessage = 'Lỗi khi lấy danh sách nhân viên: $e';
+      notifyListeners();
+      return [];
+    }
+  }
+
+  // Add employee
+  Future<bool> addEmployee(EmployeeModel employee) async {
+    try {
+      await _firestoreService.addEmployee(employee);
+      return true;
+    } catch (e) {
+      _errorMessage = 'Lỗi khi thêm nhân viên: $e';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // Update employee
+  Future<bool> updateEmployee(EmployeeModel employee) async {
+    try {
+      await _firestoreService.updateEmployee(employee);
+      return true;
+    } catch (e) {
+      _errorMessage = 'Lỗi khi cập nhật nhân viên: $e';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // Delete employee
+  Future<bool> deleteEmployee(String employeeId) async {
+    try {
+      await _firestoreService.deleteEmployee(employeeId);
+      return true;
+    } catch (e) {
+      _errorMessage = 'Lỗi khi xóa nhân viên: $e';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // Get employee by username
+  Future<EmployeeModel?> getEmployeeByUsername(String username) async {
+    try {
+      return await _firestoreService.getEmployeeByUsername(username);
+    } catch (e) {
+      _errorMessage = 'Lỗi khi tìm nhân viên: $e';
+      notifyListeners();
+      return null;
     }
   }
 }

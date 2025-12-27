@@ -565,26 +565,61 @@ class _PaymentDialogState extends State<PaymentDialog> {
   Future<void> _processPayment(BuildContext context) async {
     final provider = Provider.of<RestaurantProvider>(context, listen: false);
     
-    final success = await provider.processPayment(
-      widget.table.id,
-      _total,
-      _discount,
-      _selectedPaymentMethod,
+    // Show loading indicator
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(),
+      ),
     );
 
-    if (context.mounted) {
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            success
-                ? 'Thanh toán thành công!'
-                : 'Lỗi khi thanh toán. Vui lòng thử lại.',
-          ),
-          backgroundColor: success ? AppTheme.statusGreen : AppTheme.statusRed,
-          duration: const Duration(seconds: 2),
-        ),
+    try {
+      final success = await provider.processPayment(
+        widget.table.id,
+        _total,
+        _discount,
+        _selectedPaymentMethod,
       );
+
+      if (context.mounted) {
+        // Close loading dialog
+        Navigator.pop(context);
+        
+        // Close payment dialog
+        Navigator.pop(context);
+        
+        // Show result message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              success
+                  ? 'Thanh toán thành công!'
+                  : (provider.errorMessage != null && provider.errorMessage!.isNotEmpty)
+                      ? provider.errorMessage!
+                      : 'Lỗi khi thanh toán. Vui lòng thử lại.',
+            ),
+            backgroundColor: success ? AppTheme.statusGreen : AppTheme.statusRed,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        // Close loading dialog
+        Navigator.pop(context);
+        
+        // Show error message without closing payment dialog
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Lỗi khi thanh toán: $e',
+            ),
+            backgroundColor: AppTheme.statusRed,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
     }
   }
 }
