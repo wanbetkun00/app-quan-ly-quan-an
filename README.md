@@ -1,196 +1,77 @@
-<!DOCTYPE html>
-<html lang="vi">
-<head>
-  <meta charset="UTF-8" />
-  <title>Ứng Dụng Quản Lý Quán Ăn - TKA</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+# 🍽️ Ứng Dụng Quản Lý Quán Ăn – TKA
 
-  <style>
-    body {
-      margin: 0;
-      font-family: "Segoe UI", sans-serif;
-      background: #0f1117;
-      color: #eaeaea;
-      line-height: 1.7;
-    }
+![Flutter](https://img.shields.io/badge/Flutter-3.x-blue?style=for-the-badge&logo=flutter&logoColor=white)
+![Firebase](https://img.shields.io/badge/Firebase-Realtime%20Database-orange?style=for-the-badge&logo=firebase&logoColor=white)
+![Android](https://img.shields.io/badge/Platform-Android-green?style=for-the-badge&logo=android&logoColor=white)
+![Figma](https://img.shields.io/badge/UI-Figma-purple?style=for-the-badge&logo=figma&logoColor=white)
 
-    .container {
-      max-width: 900px;
-      margin: auto;
-      padding: 40px 20px;
-    }
+## 📌 Giới thiệu
 
-    h1, h2, h3 {
-      color: #ffffff;
-    }
+**TKA – Ứng Dụng Quản Lý Quán Ăn** được xây dựng bằng **Flutter**, giúp quản lý hoạt động bán hàng một cách đơn giản, trực quan và hiệu quả.
 
-    h1 {
-      text-align: center;
-      margin-bottom: 10px;
-    }
+Ứng dụng được thiết kế phù hợp cho các quán ăn quy mô vừa và nhỏ, phục vụ mục đích học tập nghiên cứu công nghệ và triển khai thực tế.
 
-    .badges {
-      text-align: center;
-      margin: 20px 0 40px;
-    }
+## 🎯 Mục tiêu dự án
 
-    .badges img {
-      margin: 6px;
-      height: 32px;
-    }
+- Áp dụng kiến thức lập trình **Flutter** vào thực tế.
+- Rèn luyện tư duy tổ chức và quản lý Source Code.
+- Xây dựng giao diện (UI/UX) thân thiện, tối giản, dễ sử dụng.
+- Kiến trúc hệ thống có khả năng mở rộng trong tương lai.
 
-    section {
-      margin-bottom: 40px;
-    }
+## 🧠 Công nghệ sử dụng
 
-    ul {
-      padding-left: 20px;
-    }
+| Thành phần | Công nghệ |
+| :--- | :--- |
+| **Ngôn ngữ** | Dart (Flutter Framework) |
+| **Nền tảng** | Android |
+| **Cơ sở dữ liệu** | Firebase Realtime Database |
+| **Lưu trữ ảnh** | Không sử dụng (Hiện tại) |
+| **Xác thực** | Không sử dụng (Hiện tại) |
+| **Thiết kế UI** | Figma |
 
-    li {
-      margin-bottom: 8px;
-    }
+## 📱 Chức năng chính
 
-    .box {
-      background: #161b22;
-      padding: 20px;
-      border-radius: 10px;
-      margin-top: 15px;
-    }
+### 🍔 Quản lý sản phẩm
+- [x] Thêm / Sửa / Xóa món ăn.
+- [x] Hiển thị danh sách thực đơn trực quan.
+- [x] Cập nhật dữ liệu đồng bộ theo thời gian thực (Realtime).
 
-    code {
-      background: #1e1e1e;
-      padding: 4px 6px;
-      border-radius: 6px;
-      color: #4fc3f7;
-    }
+### 🧾 Quản lý đơn hàng
+- [x] Tạo đơn hàng mới (Order).
+- [x] Xem chi tiết hóa đơn.
+- [x] Cập nhật trạng thái đơn hàng (Chờ xử lý, Đang nấu, Hoàn thành).
 
-    pre {
-      background: #1e1e1e;
-      padding: 16px;
-      border-radius: 10px;
-      overflow-x: auto;
-      color: #dcdcdc;
-    }
+🎨 Thiết kế giao diện
+Được thiết kế dựa trên bản mẫu Figma.
 
-    footer {
-      text-align: center;
-      margin-top: 60px;
-      opacity: 0.8;
-    }
-  </style>
-</head>
+Phong cách tối giản (Minimalism), tập trung vào thao tác nhanh.
 
-<body>
-  <div class="container">
+Tối ưu hóa trải nghiệm người dùng (UX) trên thiết bị Android.
 
-    <h1>🍽️ Ứng Dụng Quản Lý Quán Ăn – TKA</h1>
+🚀 Hướng phát triển (Roadmap)
+[ ] 📊 Thống kê báo cáo doanh thu theo Ngày / Tháng.
 
-    <div class="badges">
-      <img src="https://img.shields.io/badge/Flutter-3.x-blue?style=for-the-badge&logo=flutter&logoColor=white">
-      <img src="https://img.shields.io/badge/Firebase-Realtime%20Database-orange?style=for-the-badge&logo=firebase&logoColor=white">
-      <img src="https://img.shields.io/badge/Platform-Android-green?style=for-the-badge&logo=android&logoColor=white">
-      <img src="https://img.shields.io/badge/UI-Figma-purple?style=for-the-badge&logo=figma&logoColor=white">
-    </div>
+[ ] 💳 Tích hợp cổng thanh toán Online (VNPay, Momo).
 
-    <section>
-      <h2>📌 Giới thiệu</h2>
-      <p>
-        <b>TKA – Ứng Dụng Quản Lý Quán Ăn</b> được xây dựng bằng Flutter,
-        giúp quản lý hoạt động bán hàng một cách đơn giản, trực quan và hiệu quả.
-      </p>
-      <p>
-        Ứng dụng phù hợp cho quán ăn nhỏ và vừa, phục vụ mục đích học tập và triển khai thực tế.
-      </p>
-    </section>
+[ ] 🧾 Xuất hóa đơn định dạng PDF.
 
-    <section>
-      <h2>🎯 Mục tiêu dự án</h2>
-      <ul>
-        <li>Áp dụng kiến thức Flutter vào thực tế</li>
-        <li>Rèn luyện tư duy tổ chức project</li>
-        <li>Xây dựng giao diện thân thiện, dễ dùng</li>
-        <li>Có khả năng mở rộng trong tương lai</li>
-      </ul>
-    </section>
+[ ] 🔐 Phân quyền tài khoản nâng cao (Admin / Staff).
 
-    <section>
-      <h2>🧠 Công nghệ sử dụng</h2>
-      <div class="box">
-        <ul>
-          <li><b>Ngôn ngữ:</b> Dart (Flutter)</li>
-          <li><b>Nền tảng:</b> Android</li>
-          <li><b>Cơ sở dữ liệu:</b> Firebase Realtime Database</li>
-          <li><b>Lưu ảnh:</b> Không sử dụng</li>
-          <li><b>Xác thực:</b> Không sử dụng</li>
-          <li><b>Thiết kế UI:</b> Figma</li>
-        </ul>
-      </div>
-    </section>
+[ ] 🎨 Tiếp tục cải thiện UI / UX mượt mà hơn.
 
-    <section>
-      <h2>📱 Chức năng chính</h2>
+## 🗂️ Cấu trúc thư mục
 
-      <h3>🍔 Quản lý sản phẩm</h3>
-      <ul>
-        <li>Thêm / sửa / xóa món ăn</li>
-        <li>Hiển thị danh sách món</li>
-        <li>Cập nhật dữ liệu theo thời gian thực</li>
-      </ul>
+Cấu trúc dự án được tổ chức theo mô hình phân tách rõ ràng để dễ dàng bảo trì:
 
-      <h3>🧾 Quản lý đơn hàng</h3>
-      <ul>
-        <li>Tạo đơn hàng</li>
-        <li>Xem chi tiết đơn</li>
-        <li>Cập nhật trạng thái</li>
-      </ul>
-
-      <p><b>⚠️ Ứng dụng không có chức năng quản lý khách hàng.</b></p>
-    </section>
-
-    <section>
-      <h2>🗂️ Cấu trúc thư mục</h2>
-      <pre>
+```text
 lib/
-├── constants/
-├── models/
-├── providers/
-├── screens/
-├── services/
-├── theme/
-├── utils/
-├── widgets/
+├── constants/       # Các hằng số, màu sắc, strings
+├── models/          # Các lớp dữ liệu (Data Models)
+├── providers/       # Quản lý trạng thái (State Management)
+├── screens/         # Các màn hình giao diện (UI Screens)
+├── services/        # Xử lý Logic, API, Firebase Service
+├── theme/           # Cấu hình giao diện chung
+├── utils/           # Các hàm tiện ích hỗ trợ
+├── widgets/         # Các Widget tái sử dụng
 ├── firebase_options.dart
 └── main.dart
-      </pre>
-    </section>
-
-    <section>
-      <h2>🎨 Thiết kế giao diện</h2>
-      <ul>
-        <li>Thiết kế bằng Figma</li>
-        <li>Giao diện tối giản, dễ sử dụng</li>
-        <li>Tối ưu trải nghiệm người dùng Android</li>
-      </ul>
-    </section>
-
-    <section>
-      <h2>🚀 Hướng phát triển</h2>
-      <ul>
-        <li>📊 Thống kê doanh thu theo ngày / tháng</li>
-        <li>💳 Thanh toán online (VNPay, Momo)</li>
-        <li>🧾 Xuất hóa đơn PDF</li>
-        <li>🔐 Phân quyền nâng cao</li>
-        <li>🎨 Cải thiện UI / UX</li>
-      </ul>
-    </section>
-
-    <footer>
-      <p><b>👨‍💻 Tác giả:</b> Kun</p>
-      <p><b>GitHub:</b> https://github.com/wanbetkun00</p>
-      <p>⭐ Nếu thấy hay thì cho mình một star nhé!</p>
-    </footer>
-
-  </div>
-</body>
-</html>
