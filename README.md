@@ -1,55 +1,156 @@
-🍽️ Ứng Dụng Quản Lý Quán Ăn – TKA
-<p align="center"> <img src="https://img.shields.io/badge/Flutter-3.x-blue?style=for-the-badge&logo=flutter&logoColor=white" /> <img src="https://img.shields.io/badge/Firebase-Realtime%20Database-orange?style=for-the-badge&logo=firebase&logoColor=white" /> <img src="https://img.shields.io/badge/Platform-Android-green?style=for-the-badge&logo=android&logoColor=white" /> <img src="https://img.shields.io/badge/UI-Figma-purple?style=for-the-badge&logo=figma&logoColor=white" /> </p>
-🚀 Giới thiệu
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <title>Ứng Dụng Quản Lý Quán Ăn - TKA</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 
-TKA – Ứng Dụng Quản Lý Quán Ăn là ứng dụng được phát triển bằng Flutter, hỗ trợ quản lý hoạt động quán ăn một cách đơn giản, trực quan và hiệu quả.
+  <style>
+    body {
+      margin: 0;
+      font-family: "Segoe UI", sans-serif;
+      background: #0f1117;
+      color: #eaeaea;
+      line-height: 1.7;
+    }
 
-Ứng dụng phù hợp với các quán ăn nhỏ và vừa, giúp quản lý:
+    .container {
+      max-width: 900px;
+      margin: auto;
+      padding: 40px 20px;
+    }
 
-Món ăn
+    h1, h2, h3 {
+      color: #ffffff;
+    }
 
-Đơn hàng
+    h1 {
+      text-align: center;
+      margin-bottom: 10px;
+    }
 
-Hoạt động bán hàng hằng ngày
+    .badges {
+      text-align: center;
+      margin: 20px 0 40px;
+    }
 
-🎯 Mục tiêu dự án
+    .badges img {
+      margin: 6px;
+      height: 32px;
+    }
 
-Áp dụng kiến thức Flutter vào thực tế
+    section {
+      margin-bottom: 40px;
+    }
 
-Rèn luyện tư duy tổ chức cấu trúc dự án
+    ul {
+      padding-left: 20px;
+    }
 
-Thiết kế giao diện thân thiện, dễ sử dụng
+    li {
+      margin-bottom: 8px;
+    }
 
-Xây dựng nền tảng có thể mở rộng trong tương lai
+    .box {
+      background: #161b22;
+      padding: 20px;
+      border-radius: 10px;
+      margin-top: 15px;
+    }
 
-🧠 Công nghệ sử dụng
-Thành phần	Công nghệ
-Ngôn ngữ	Dart (Flutter)
-Nền tảng	Android
-Database	Firebase Realtime Database
-Lưu trữ ảnh	❌ Không sử dụng
-Xác thực	❌ Không sử dụng
-Thiết kế UI	Figma
-📱 Chức năng chính
-🍔 Quản lý sản phẩm
+    code {
+      background: #1e1e1e;
+      padding: 4px 6px;
+      border-radius: 6px;
+      color: #4fc3f7;
+    }
 
-Thêm / sửa / xóa món ăn
+    pre {
+      background: #1e1e1e;
+      padding: 16px;
+      border-radius: 10px;
+      overflow-x: auto;
+      color: #dcdcdc;
+    }
 
-Hiển thị danh sách món ăn
+    footer {
+      text-align: center;
+      margin-top: 60px;
+      opacity: 0.8;
+    }
+  </style>
+</head>
 
-Cập nhật dữ liệu theo thời gian thực
+<body>
+  <div class="container">
 
-🧾 Quản lý đơn hàng
+    <h1>🍽️ Ứng Dụng Quản Lý Quán Ăn – TKA</h1>
 
-Tạo đơn hàng
+    <div class="badges">
+      <img src="https://img.shields.io/badge/Flutter-3.x-blue?style=for-the-badge&logo=flutter&logoColor=white">
+      <img src="https://img.shields.io/badge/Firebase-Realtime%20Database-orange?style=for-the-badge&logo=firebase&logoColor=white">
+      <img src="https://img.shields.io/badge/Platform-Android-green?style=for-the-badge&logo=android&logoColor=white">
+      <img src="https://img.shields.io/badge/UI-Figma-purple?style=for-the-badge&logo=figma&logoColor=white">
+    </div>
 
-Xem chi tiết đơn
+    <section>
+      <h2>📌 Giới thiệu</h2>
+      <p>
+        <b>TKA – Ứng Dụng Quản Lý Quán Ăn</b> được xây dựng bằng Flutter,
+        giúp quản lý hoạt động bán hàng một cách đơn giản, trực quan và hiệu quả.
+      </p>
+      <p>
+        Ứng dụng phù hợp cho quán ăn nhỏ và vừa, phục vụ mục đích học tập và triển khai thực tế.
+      </p>
+    </section>
 
-Cập nhật trạng thái đơn hàng
+    <section>
+      <h2>🎯 Mục tiêu dự án</h2>
+      <ul>
+        <li>Áp dụng kiến thức Flutter vào thực tế</li>
+        <li>Rèn luyện tư duy tổ chức project</li>
+        <li>Xây dựng giao diện thân thiện, dễ dùng</li>
+        <li>Có khả năng mở rộng trong tương lai</li>
+      </ul>
+    </section>
 
-⚠️ Ứng dụng không có chức năng quản lý khách hàng.
+    <section>
+      <h2>🧠 Công nghệ sử dụng</h2>
+      <div class="box">
+        <ul>
+          <li><b>Ngôn ngữ:</b> Dart (Flutter)</li>
+          <li><b>Nền tảng:</b> Android</li>
+          <li><b>Cơ sở dữ liệu:</b> Firebase Realtime Database</li>
+          <li><b>Lưu ảnh:</b> Không sử dụng</li>
+          <li><b>Xác thực:</b> Không sử dụng</li>
+          <li><b>Thiết kế UI:</b> Figma</li>
+        </ul>
+      </div>
+    </section>
 
-🗂️ Cấu trúc thư mục
+    <section>
+      <h2>📱 Chức năng chính</h2>
+
+      <h3>🍔 Quản lý sản phẩm</h3>
+      <ul>
+        <li>Thêm / sửa / xóa món ăn</li>
+        <li>Hiển thị danh sách món</li>
+        <li>Cập nhật dữ liệu theo thời gian thực</li>
+      </ul>
+
+      <h3>🧾 Quản lý đơn hàng</h3>
+      <ul>
+        <li>Tạo đơn hàng</li>
+        <li>Xem chi tiết đơn</li>
+        <li>Cập nhật trạng thái</li>
+      </ul>
+
+      <p><b>⚠️ Ứng dụng không có chức năng quản lý khách hàng.</b></p>
+    </section>
+
+    <section>
+      <h2>🗂️ Cấu trúc thư mục</h2>
+      <pre>
 lib/
 ├── constants/
 ├── models/
@@ -61,49 +162,35 @@ lib/
 ├── widgets/
 ├── firebase_options.dart
 └── main.dart
+      </pre>
+    </section>
 
-📌 Giải thích nhanh
+    <section>
+      <h2>🎨 Thiết kế giao diện</h2>
+      <ul>
+        <li>Thiết kế bằng Figma</li>
+        <li>Giao diện tối giản, dễ sử dụng</li>
+        <li>Tối ưu trải nghiệm người dùng Android</li>
+      </ul>
+    </section>
 
-constants/: Chứa các hằng số dùng chung
+    <section>
+      <h2>🚀 Hướng phát triển</h2>
+      <ul>
+        <li>📊 Thống kê doanh thu theo ngày / tháng</li>
+        <li>💳 Thanh toán online (VNPay, Momo)</li>
+        <li>🧾 Xuất hóa đơn PDF</li>
+        <li>🔐 Phân quyền nâng cao</li>
+        <li>🎨 Cải thiện UI / UX</li>
+      </ul>
+    </section>
 
-models/: Định nghĩa model dữ liệu
+    <footer>
+      <p><b>👨‍💻 Tác giả:</b> Kun</p>
+      <p><b>GitHub:</b> https://github.com/wanbetkun00</p>
+      <p>⭐ Nếu thấy hay thì cho mình một star nhé!</p>
+    </footer>
 
-providers/: Quản lý trạng thái (state management)
-
-screens/: Các màn hình giao diện chính
-
-services/: Xử lý logic, kết nối Firebase
-
-theme/: Màu sắc, style giao diện
-
-utils/: Hàm tiện ích dùng chung
-
-widgets/: Các widget tái sử dụng
-
-🎨 Thiết kế giao diện
-
-Thiết kế bằng Figma
-
-Phong cách tối giản, dễ sử dụng
-
-Tối ưu trải nghiệm người dùng trên Android
-
-🚀 Hướng phát triển trong tương lai
-
-📊 Thống kê doanh thu theo ngày / tháng
-
-💳 Thanh toán online (VNPay, Momo…)
-
-🧾 Xuất hóa đơn PDF
-
-🔐 Phân quyền nâng cao
-
-🎨 Cải thiện UI/UX
-
-👨‍💻 Tác giả
-
-Tên: Kun
-
-Vai trò: Flutter Developer
-
-GitHub: https://github.com/wanbetkun00
+  </div>
+</body>
+</html>
