@@ -7,6 +7,7 @@ import '../../theme/app_theme.dart';
 import '../../models/menu_item.dart';
 import '../../models/enums.dart';
 import '../../utils/vnd_format.dart';
+import '../../services/excel_export_service.dart';
 
 class ReportsScreen extends StatefulWidget {
   const ReportsScreen({super.key});
@@ -484,7 +485,7 @@ class _ReportTabViewState extends State<_ReportTabView> {
 
             const SizedBox(height: 24),
 
-            // Save Report Button
+            // Export to Excel Button
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
@@ -493,13 +494,20 @@ class _ReportTabViewState extends State<_ReportTabView> {
                   try {
                     final provider =
                         Provider.of<RestaurantProvider>(context, listen: false);
-                    await provider.saveReport(report);
+                    final exportService = ExcelExportService();
+                    
+                    final filePath = await exportService.exportReportToExcel(
+                      report: report,
+                      menuItems: provider.menu,
+                    );
+
                     if (mounted) {
                       setState(() => _isLoading = false);
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text(context.strings.reportSavedSuccess),
+                          content: Text('Đã xuất báo cáo Excel thành công!\n$filePath'),
                           backgroundColor: AppTheme.statusGreen,
+                          duration: const Duration(seconds: 3),
                         ),
                       );
                     }
@@ -508,14 +516,14 @@ class _ReportTabViewState extends State<_ReportTabView> {
                       setState(() => _isLoading = false);
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text(context.strings.errorSavingReport(e.toString())),
+                          content: Text('Lỗi khi xuất Excel: $e'),
                           backgroundColor: AppTheme.statusRed,
                         ),
                       );
                     }
                   }
                 },
-                icon: const Icon(Icons.save),
+                icon: const Icon(Icons.file_download),
                 label: Text(context.strings.saveReport),
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
