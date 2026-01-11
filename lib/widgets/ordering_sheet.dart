@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/models.dart';
 import '../providers/restaurant_provider.dart';
+import '../providers/auth_provider.dart';
 import '../providers/app_strings.dart';
 import '../theme/app_theme.dart';
 import '../utils/vnd_format.dart';
@@ -534,9 +535,11 @@ class _OrderingSheetState extends State<OrderingSheet>
             onPressed: draftItems.isEmpty
                 ? null
                 : () async {
+                    final authProvider = Provider.of<AuthProvider>(context, listen: false);
                     final success = await provider.placeOrder(
                       widget.tableId,
                       draftItems,
+                      employeeId: authProvider.employeeId,
                     );
                     if (context.mounted) {
                       Navigator.pop(context);

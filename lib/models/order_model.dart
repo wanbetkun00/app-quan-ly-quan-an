@@ -7,6 +7,7 @@ class OrderModel {
   final DateTime timestamp;
   List<OrderItem> items;
   OrderStatus status;
+  final String? employeeId;
 
   OrderModel({
     required this.id,
@@ -14,9 +15,9 @@ class OrderModel {
     required this.timestamp,
     required this.items,
     this.status = OrderStatus.pending,
+    this.employeeId,
   });
 
   double get total =>
       items.fold(0, (sum, item) => sum + (item.menuItem.price * item.quantity));
 }
-

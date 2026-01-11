@@ -186,18 +186,19 @@ class FirestoreService {
 
   // ========== ORDERS ==========
 
-  // Stream active orders (not completed and not paid) - requires menu
+  // Stream active orders (not paid) - requires menu
+  // Includes pending, cooking, readyToServe, and completed orders that are not paid
   Stream<List<OrderModel>> getActiveOrdersStream(List<MenuItem> menu) {
     return _firestore
         .collection(ordersCollection)
-        .where('status', whereIn: ['pending', 'cooking', 'readyToServe'])
+        .where('status', whereIn: ['pending', 'cooking', 'readyToServe', 'completed'])
         .orderBy('timestamp', descending: true)
         .snapshots()
         .map(
           (snapshot) => snapshot.docs
               .map((doc) {
                 final data = doc.data();
-                // Exclude paid orders
+                // Exclude paid orders - only show unpaid orders
                 if (data['isPaid'] == true) {
                   return null;
                 }
@@ -209,17 +210,18 @@ class FirestoreService {
         );
   }
 
-  // Get active orders once (not completed and not paid) - requires menu
+  // Get active orders once (not paid) - requires menu
+  // Includes pending, cooking, readyToServe, and completed orders that are not paid
   Future<List<OrderModel>> getActiveOrders(List<MenuItem> menu) async {
     final snapshot = await _firestore
         .collection(ordersCollection)
-        .where('status', whereIn: ['pending', 'cooking', 'readyToServe'])
+        .where('status', whereIn: ['pending', 'cooking', 'readyToServe', 'completed'])
         .orderBy('timestamp', descending: true)
         .get();
     return snapshot.docs
         .map((doc) {
           final data = doc.data();
-          // Exclude paid orders
+          // Exclude paid orders - only show unpaid orders
           if (data['isPaid'] == true) {
             return null;
           }
@@ -329,7 +331,7 @@ class FirestoreService {
 
   // Convert OrderModel to Firestore Map
   Map<String, dynamic> _orderToFirestore(OrderModel order) {
-    return {
+    final map = <String, dynamic>{
       'id': order.id,
       'tableId': order.tableId,
       'timestamp': Timestamp.fromDate(order.timestamp),
@@ -345,6 +347,11 @@ class FirestoreService {
           )
           .toList(),
     };
+    // Add employeeId if present
+    if (order.employeeId != null) {
+      map['employeeId'] = order.employeeId!;
+    }
+    return map;
   }
 
   // Convert Firestore Map to OrderModel (with menu items)
@@ -382,6 +389,7 @@ class FirestoreService {
         orElse: () => OrderStatus.pending,
       ),
       items: items,
+      employeeId: data['employeeId'] as String?,
     );
   }
 

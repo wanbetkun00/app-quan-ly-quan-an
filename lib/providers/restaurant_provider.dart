@@ -209,6 +209,10 @@ class RestaurantProvider extends ChangeNotifier {
 
         if (tableOrders.isNotEmpty && table.status == TableStatus.available) {
           // Table has orders but is marked as available, update it
+          // BUT: Only do this if the table doesn't have currentOrderId = null
+          // This prevents reverting tables that were just set to available after payment
+          // If a table was just paid, it will have currentOrderId = null and status = available
+          // We should only sync if there are truly new orders that need to be tracked
           final latestOrder = tableOrders.first;
           table.currentOrderId = latestOrder.id;
           if (latestOrder.status == OrderStatus.completed) {
@@ -216,6 +220,18 @@ class RestaurantProvider extends ChangeNotifier {
           } else {
             table.status = TableStatus.occupied;
           }
+          hasChanges = true;
+
+          try {
+            await _firestoreService.updateTable(table);
+          } catch (e) {
+            debugPrint('Error syncing table ${table.id}: $e');
+          }
+        } else if (tableOrders.isEmpty &&
+            table.status != TableStatus.available) {
+          // No active orders and table is not available - should be available
+          table.status = TableStatus.available;
+          table.currentOrderId = null;
           hasChanges = true;
 
           try {
@@ -280,7 +296,11 @@ class RestaurantProvider extends ChangeNotifier {
   }
 
   // Waiter: Create a new order
-  Future<bool> placeOrder(int tableId, List<OrderItem> items) async {
+  Future<bool> placeOrder(
+    int tableId,
+    List<OrderItem> items, {
+    String? employeeId,
+  }) async {
     if (items.isEmpty) return false;
 
     try {
@@ -294,6 +314,7 @@ class RestaurantProvider extends ChangeNotifier {
         timestamp: DateTime.now(),
         items: items,
         status: OrderStatus.pending, // Explicitly set status
+        employeeId: employeeId,
       );
 
       // Save order to Firestore
@@ -437,8 +458,12 @@ class RestaurantProvider extends ChangeNotifier {
       // Mark orders as paid
       await _firestoreService.markOrdersAsPaid(orderIds);
 
-      // Delete paid orders for this table to clear old data
-      await _firestoreService.deletePaidOrdersForTable(tableId, orderIds);
+      // Note: We keep orders in Firestore with isPaid=true for history/reporting
+      // The filtering logic will automatically exclude paid orders from activeOrders
+
+      // Remove paid orders from local activeOrders list immediately
+      // This prevents sync from reverting table status
+      activeOrders.removeWhere((order) => orderIds.contains(order.id));
 
       // Update table status to available
       tables[tableIndex].status = TableStatus.available;
@@ -450,7 +475,7 @@ class RestaurantProvider extends ChangeNotifier {
       // Notify listeners immediately for instant UI update
       notifyListeners();
 
-      // Refresh orders to remove deleted paid orders from local list
+      // Refresh orders to ensure consistency (stream will update eventually)
       await _refreshOrders();
 
       // Refresh tables but skip sync to preserve the status we just set
