@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter/services.dart';
 import '../models/models.dart';
 import '../providers/restaurant_provider.dart';
 import '../theme/app_theme.dart';
 import '../utils/vnd_format.dart';
 import 'package:intl/intl.dart';
+import '../services/error_handler.dart';
 
 class PaymentDialog extends StatefulWidget {
   final TableModel table;
@@ -26,6 +28,7 @@ class _PaymentDialogState extends State<PaymentDialog> {
   final TextEditingController _discountController = TextEditingController();
   final TextEditingController _receivedController = TextEditingController();
   PaymentMethod _selectedPaymentMethod = PaymentMethod.cash;
+  final ErrorHandler _errorHandler = ErrorHandler();
 
   @override
   void dispose() {
@@ -319,6 +322,10 @@ class _PaymentDialogState extends State<PaymentDialog> {
               child: TextField(
                 controller: _discountController,
                 keyboardType: TextInputType.number,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(3),
+                ],
                 decoration: InputDecoration(
                   hintText: 'Nhập % giảm giá',
                   suffixText: '%',
@@ -466,6 +473,10 @@ class _PaymentDialogState extends State<PaymentDialog> {
         TextField(
           controller: _receivedController,
           keyboardType: TextInputType.number,
+          inputFormatters: [
+            FilteringTextInputFormatter.digitsOnly,
+            LengthLimitingTextInputFormatter(12),
+          ],
           decoration: InputDecoration(
             hintText: 'Nhập số tiền nhận',
             prefixText: '₫ ',
@@ -604,7 +615,16 @@ class _PaymentDialogState extends State<PaymentDialog> {
           ),
         );
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      final message = _errorHandler.getUserMessage(
+        e,
+        fallbackMessage: 'Lỗi khi thanh toán',
+      );
+      _errorHandler.logError(
+        e,
+        stackTrace,
+        context: 'Error processing payment',
+      );
       if (context.mounted) {
         // Close loading dialog
         Navigator.pop(context);
@@ -613,7 +633,7 @@ class _PaymentDialogState extends State<PaymentDialog> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Lỗi khi thanh toán: $e',
+              message,
             ),
             backgroundColor: AppTheme.statusRed,
             duration: const Duration(seconds: 4),

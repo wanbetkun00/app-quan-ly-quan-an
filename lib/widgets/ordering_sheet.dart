@@ -6,6 +6,7 @@ import '../providers/auth_provider.dart';
 import '../providers/app_strings.dart';
 import '../theme/app_theme.dart';
 import '../utils/vnd_format.dart';
+import '../utils/input_sanitizer.dart';
 import 'dart:io';
 
 class OrderingSheet extends StatefulWidget {
@@ -163,7 +164,7 @@ class _OrderingSheetState extends State<OrderingSheet>
                   ),
                   onChanged: (value) {
                     setState(() {
-                      _searchQuery = value;
+                      _searchQuery = InputSanitizer.sanitizeSearchQuery(value);
                     });
                   },
                 ),

@@ -18,7 +18,7 @@ class KitchenDisplayScreen extends StatefulWidget {
 
 class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
   OrderStatus? _selectedFilter;
-  bool _showCompleted = false;
+  bool _showCompleted = true;
 
   @override
   Widget build(BuildContext context) {
@@ -39,7 +39,7 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
               .where((o) => o.status != OrderStatus.completed)
               .toList();
         }
-        
+
         if (_selectedFilter != null) {
           filteredOrders = filteredOrders
               .where((o) => o.status == _selectedFilter)
@@ -48,7 +48,8 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
 
         // Sort by timestamp (oldest first for pending, newest first for others)
         filteredOrders.sort((a, b) {
-          if (a.status == OrderStatus.pending && b.status == OrderStatus.pending) {
+          if (a.status == OrderStatus.pending &&
+              b.status == OrderStatus.pending) {
             return a.timestamp.compareTo(b.timestamp); // Oldest first
           }
           return b.timestamp.compareTo(a.timestamp); // Newest first
@@ -61,10 +62,10 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
             children: [
               // Order Status Section
               _buildOrderStatusSection(context, provider),
-              
+
               // Filter Bar
               _buildFilterBar(context, filteredOrders),
-              
+
               // Orders Grid
               Expanded(
                 child: filteredOrders.isEmpty
@@ -73,12 +74,13 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
                         onRefresh: () => provider.refreshData(),
                         child: GridView.builder(
                           padding: const EdgeInsets.all(12),
-                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2,
-                            childAspectRatio: 0.7,
-                            crossAxisSpacing: 12,
-                            mainAxisSpacing: 12,
-                          ),
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 2,
+                                childAspectRatio: 0.7,
+                                crossAxisSpacing: 12,
+                                mainAxisSpacing: 12,
+                              ),
                           itemCount: filteredOrders.length,
                           itemBuilder: (context, index) {
                             return AnimatedCard(
@@ -130,7 +132,10 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
         ),
         TextButton(
           onPressed: () {
-            Provider.of<LanguageProvider>(context, listen: false).toggleLanguage();
+            Provider.of<LanguageProvider>(
+              context,
+              listen: false,
+            ).toggleLanguage();
           },
           child: Text(
             Provider.of<LanguageProvider>(context).languageCode,
@@ -144,7 +149,10 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
     );
   }
 
-  Widget _buildOrderStatusSection(BuildContext context, RestaurantProvider provider) {
+  Widget _buildOrderStatusSection(
+    BuildContext context,
+    RestaurantProvider provider,
+  ) {
     final pendingCount = provider.activeOrders
         .where((o) => o.status == OrderStatus.pending)
         .length;
@@ -230,10 +238,7 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
           const SizedBox(height: 4),
           Text(
             title,
-            style: TextStyle(
-              fontSize: 11,
-              color: Colors.grey[700],
-            ),
+            style: TextStyle(fontSize: 11, color: Colors.grey[700]),
             textAlign: TextAlign.center,
           ),
         ],
@@ -252,7 +257,11 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: [
-                  _buildFilterChip(context.strings.filterAll, null, orders.length),
+                  _buildFilterChip(
+                    context.strings.filterAll,
+                    null,
+                    orders.length,
+                  ),
                   const SizedBox(width: 8),
                   _buildFilterChip(
                     context.strings.orderStatusPending,
@@ -269,20 +278,26 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
                   _buildFilterChip(
                     context.strings.orderStatusReady,
                     OrderStatus.readyToServe,
-                    orders.where((o) => o.status == OrderStatus.readyToServe).length,
+                    orders
+                        .where((o) => o.status == OrderStatus.readyToServe)
+                        .length,
                   ),
                 ],
               ),
             ),
           ),
           IconButton(
-            icon: Icon(_showCompleted ? Icons.visibility : Icons.visibility_off),
+            icon: Icon(
+              _showCompleted ? Icons.visibility : Icons.visibility_off,
+            ),
             onPressed: () {
               setState(() {
                 _showCompleted = !_showCompleted;
               });
             },
-            tooltip: _showCompleted ? 'Ẩn đơn đã hoàn thành' : 'Hiện đơn đã hoàn thành',
+            tooltip: _showCompleted
+                ? 'Ẩn đơn đã hoàn thành'
+                : 'Hiện đơn đã hoàn thành',
           ),
         ],
       ),
@@ -292,7 +307,7 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
   Widget _buildFilterChip(String label, OrderStatus? status, int count) {
     final isSelected = _selectedFilter == status;
     Color chipColor;
-    
+
     if (status == null) {
       chipColor = Colors.grey;
     } else {
@@ -356,11 +371,7 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.restaurant_menu,
-            size: 80,
-            color: Colors.grey[400],
-          ),
+          Icon(Icons.restaurant_menu, size: 80, color: Colors.grey[400]),
           const SizedBox(height: 16),
           Text(
             context.strings.noActiveOrders,
@@ -373,10 +384,7 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
           const SizedBox(height: 8),
           Text(
             context.strings.noOrdersToDisplay,
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey[500],
-            ),
+            style: TextStyle(fontSize: 14, color: Colors.grey[500]),
           ),
         ],
       ),
@@ -393,6 +401,8 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
     String nextActionText;
     IconData nextActionIcon;
     Color actionColor;
+    Color cardColor = Colors.white;
+    Color headerColor = Colors.transparent;
 
     switch (order.status) {
       case OrderStatus.pending:
@@ -422,6 +432,8 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
         nextActionText = '';
         nextActionIcon = Icons.check;
         actionColor = Colors.grey;
+        cardColor = Colors.grey.shade50;
+        headerColor = Colors.grey.shade200;
         break;
     }
 
@@ -429,9 +441,18 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
     final minutesWaiting = waitingTime.inMinutes;
 
     return InkWell(
-      onTap: () => _showOrderDetails(context, order, provider, statusColor, nextActionText, nextActionIcon, actionColor),
+      onTap: () => _showOrderDetails(
+        context,
+        order,
+        provider,
+        statusColor,
+        nextActionText,
+        nextActionIcon,
+        actionColor,
+      ),
       child: Card(
         elevation: 4,
+        color: cardColor,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
           side: BorderSide(color: statusColor, width: 3),
@@ -443,8 +464,12 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: statusColor.withValues(alpha: 0.15),
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(13)),
+                color: headerColor == Colors.transparent
+                    ? statusColor.withValues(alpha: 0.15)
+                    : headerColor,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(13),
+                ),
               ),
               child: Column(
                 children: [
@@ -488,7 +513,10 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
                         ),
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
                           color: statusColor,
                           borderRadius: BorderRadius.circular(8),
@@ -510,7 +538,11 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
                     children: [
                       Row(
                         children: [
-                          Icon(Icons.access_time, size: 14, color: Colors.grey[600]),
+                          Icon(
+                            Icons.access_time,
+                            size: 14,
+                            color: Colors.grey[600],
+                          ),
                           const SizedBox(width: 4),
                           Text(
                             '${order.timestamp.hour}:${order.timestamp.minute.toString().padLeft(2, '0')}',
@@ -523,9 +555,12 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
                       ),
                       if (minutesWaiting > 0)
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
-                            color: minutesWaiting > 15 
+                            color: minutesWaiting > 15
                                 ? Colors.red.withValues(alpha: 0.2)
                                 : Colors.orange.withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(4),
@@ -534,7 +569,9 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
                             '$minutesWaiting phút',
                             style: TextStyle(
                               fontSize: 11,
-                              color: minutesWaiting > 15 ? Colors.red : Colors.orange,
+                              color: minutesWaiting > 15
+                                  ? Colors.red
+                                  : Colors.orange,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -544,7 +581,7 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
                 ],
               ),
             ),
-            
+
             // Items List - Limited preview
             Expanded(
               child: Padding(
@@ -559,7 +596,9 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
                     : ListView.builder(
                         physics: const AlwaysScrollableScrollPhysics(),
                         shrinkWrap: true,
-                        itemCount: order.items.length > 3 ? 3 : order.items.length,
+                        itemCount: order.items.length > 3
+                            ? 3
+                            : order.items.length,
                         itemBuilder: (context, index) {
                           final item = order.items[index];
                           return Padding(
@@ -574,7 +613,10 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
                                   decoration: BoxDecoration(
                                     color: statusColor.withValues(alpha: 0.2),
                                     borderRadius: BorderRadius.circular(6),
-                                    border: Border.all(color: statusColor, width: 1.5),
+                                    border: Border.all(
+                                      color: statusColor,
+                                      width: 1.5,
+                                    ),
                                   ),
                                   child: Center(
                                     child: Text(
@@ -607,13 +649,15 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
                       ),
               ),
             ),
-            
+
             // Footer with total and action
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: Colors.grey[50],
-                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(13)),
+                borderRadius: const BorderRadius.vertical(
+                  bottom: Radius.circular(13),
+                ),
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -635,10 +679,7 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
                     children: [
                       const Text(
                         'Tổng:',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey,
-                        ),
+                        style: TextStyle(fontSize: 12, color: Colors.grey),
                       ),
                       Text(
                         order.total.toVnd(),
@@ -664,12 +705,16 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
                           ),
                         ),
                         onPressed: () async {
-                          final success = await provider.advanceOrderStatus(order.id);
+                          final success = await provider.advanceOrderStatus(
+                            order.id,
+                          );
                           if (context.mounted) {
                             if (!success) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
-                                  content: Text('Lỗi khi cập nhật trạng thái đơn hàng'),
+                                  content: Text(
+                                    'Lỗi khi cập nhật trạng thái đơn hàng',
+                                  ),
                                   backgroundColor: Colors.red,
                                 ),
                               );
@@ -735,9 +780,7 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: statusColor.withValues(alpha: 0.1),
-                border: Border(
-                  bottom: BorderSide(color: Colors.grey[200]!),
-                ),
+                border: Border(bottom: BorderSide(color: Colors.grey[200]!)),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -747,7 +790,11 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
                     children: [
                       Row(
                         children: [
-                          Icon(Icons.table_restaurant, color: statusColor, size: 24),
+                          Icon(
+                            Icons.table_restaurant,
+                            color: statusColor,
+                            size: 24,
+                          ),
                           const SizedBox(width: 8),
                           Text(
                             'Bàn ${order.tableId}',
@@ -762,15 +809,15 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
                       const SizedBox(height: 4),
                       Text(
                         'Order #${order.id.toString().substring(order.id.toString().length - 4)}',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey[600],
-                        ),
+                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                       ),
                     ],
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: statusColor,
                       borderRadius: BorderRadius.circular(8),
@@ -838,7 +885,8 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
                                 Row(
                                   children: [
                                     Icon(
-                                      item.menuItem.category == MenuCategory.food
+                                      item.menuItem.category ==
+                                              MenuCategory.food
                                           ? Icons.restaurant
                                           : Icons.local_drink,
                                       size: 14,
@@ -846,7 +894,8 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
                                     ),
                                     const SizedBox(width: 4),
                                     Text(
-                                      item.menuItem.category == MenuCategory.food
+                                      item.menuItem.category ==
+                                              MenuCategory.food
                                           ? 'Món ăn'
                                           : 'Thức uống',
                                       style: TextStyle(
@@ -877,9 +926,10 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
                                       width: 60,
                                       height: 60,
                                       fit: BoxFit.cover,
-                                      errorBuilder: (context, error, stackTrace) {
-                                        return const SizedBox.shrink();
-                                      },
+                                      errorBuilder:
+                                          (context, error, stackTrace) {
+                                            return const SizedBox.shrink();
+                                          },
                                     )
                                   : _buildLocalImage(item.menuItem.imageUrl!),
                             ),
@@ -940,13 +990,17 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
                           ),
                         ),
                         onPressed: () async {
-                          final success = await provider.advanceOrderStatus(order.id);
+                          final success = await provider.advanceOrderStatus(
+                            order.id,
+                          );
                           if (ctx.mounted) {
                             Navigator.pop(ctx);
                             if (!success) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
-                                  content: Text('Lỗi khi cập nhật trạng thái đơn hàng'),
+                                  content: Text(
+                                    'Lỗi khi cập nhật trạng thái đơn hàng',
+                                  ),
                                   backgroundColor: Colors.red,
                                 ),
                               );

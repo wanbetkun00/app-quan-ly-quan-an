@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/tka_logo.dart';
+import '../../utils/input_sanitizer.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -33,8 +34,12 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     final auth = Provider.of<AuthProvider>(context, listen: false);
-    final username = _usernameController.text.trim();
-    final password = _passwordController.text.trim();
+    final username = InputSanitizer.sanitizeUsername(
+      _usernameController.text,
+    );
+    final password = InputSanitizer.sanitizePassword(
+      _passwordController.text,
+    );
 
     final success = await auth.login(username, password);
 
@@ -98,8 +103,13 @@ class _LoginScreenState extends State<LoginScreen> {
                           border: OutlineInputBorder(),
                         ),
                         validator: (value) {
-                          if (value == null || value.trim().isEmpty) {
+                          final sanitized =
+                              value == null ? '' : InputSanitizer.sanitizeUsername(value);
+                          if (sanitized.isEmpty) {
                             return 'Please enter username';
+                          }
+                          if (!RegExp(r'^[a-zA-Z0-9._-]+$').hasMatch(sanitized)) {
+                            return 'Username contains invalid characters';
                           }
                           return null;
                         },
@@ -124,8 +134,13 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ),
                         validator: (value) {
-                          if (value == null || value.trim().isEmpty) {
+                          final sanitized =
+                              value == null ? '' : InputSanitizer.sanitizePassword(value);
+                          if (sanitized.isEmpty) {
                             return 'Please enter password';
+                          }
+                          if (sanitized.contains(' ')) {
+                            return 'Password cannot contain spaces';
                           }
                           return null;
                         },

@@ -4,12 +4,14 @@ import '../models/report_model.dart';
 import '../models/shift_model.dart';
 import '../models/employee_model.dart';
 import '../theme/app_theme.dart';
+import '../services/error_handler.dart';
 import '../services/firestore_service.dart';
 import '../widgets/payment_dialog.dart';
 import 'dart:async';
 
 class RestaurantProvider extends ChangeNotifier {
   final FirestoreService _firestoreService = FirestoreService();
+  final ErrorHandler _errorHandler = ErrorHandler();
 
   List<TableModel> tables = [];
   List<MenuItem> menu = [];
@@ -21,6 +23,8 @@ class RestaurantProvider extends ChangeNotifier {
 
   String? _errorMessage;
   String? get errorMessage => _errorMessage;
+
+  bool _ordersLoaded = false;
 
   StreamSubscription<List<MenuItem>>? _menuSubscription;
   StreamSubscription<List<TableModel>>? _tablesSubscription;
@@ -39,6 +43,7 @@ class RestaurantProvider extends ChangeNotifier {
       menu = await _firestoreService.getMenu();
       tables = await _firestoreService.getTables();
       activeOrders = await _firestoreService.getActiveOrders(menu);
+      _ordersLoaded = true;
       _employees = await _firestoreService.getEmployees();
       debugPrint('Initial employees loaded: ${_employees.length} employees');
 
@@ -47,10 +52,18 @@ class RestaurantProvider extends ChangeNotifier {
 
       _isLoading = false;
       notifyListeners();
-    } catch (e) {
-      _errorMessage = 'Lỗi khi tải dữ liệu: $e';
-      _isLoading = false;
-      notifyListeners();
+    } catch (e, stackTrace) {
+      _errorHandler.handleError(
+        e,
+        stackTrace,
+        context: 'Lỗi khi tải dữ liệu',
+        fallbackMessage: 'Lỗi khi tải dữ liệu',
+        onMessage: (message) {
+          _errorMessage = message;
+          _isLoading = false;
+          notifyListeners();
+        },
+      );
     }
   }
 
@@ -70,7 +83,10 @@ class RestaurantProvider extends ChangeNotifier {
         notifyListeners();
       },
       onError: (error) {
-        _errorMessage = 'Lỗi khi đồng bộ menu: $error';
+        _errorMessage = _errorHandler.getUserMessage(
+          error,
+          fallbackMessage: 'Lỗi khi đồng bộ menu',
+        );
         notifyListeners();
       },
     );
@@ -82,7 +98,10 @@ class RestaurantProvider extends ChangeNotifier {
         notifyListeners();
       },
       onError: (error) {
-        _errorMessage = 'Lỗi khi đồng bộ bàn: $error';
+        _errorMessage = _errorHandler.getUserMessage(
+          error,
+          fallbackMessage: 'Lỗi khi đồng bộ bàn',
+        );
         notifyListeners();
       },
     );
@@ -98,8 +117,10 @@ class RestaurantProvider extends ChangeNotifier {
         notifyListeners();
       },
       onError: (error) {
-        debugPrint('Error loading employees: $error');
-        _errorMessage = 'Lỗi khi đồng bộ nhân viên: $error';
+        _errorMessage = _errorHandler.getUserMessage(
+          error,
+          fallbackMessage: 'Lỗi khi đồng bộ nhân viên',
+        );
         notifyListeners();
       },
     );
@@ -112,12 +133,17 @@ class RestaurantProvider extends ChangeNotifier {
         .listen(
           (orders) {
             activeOrders = orders;
+            _ordersLoaded = true;
             // Sync table statuses with actual orders
             _syncTableStatusesWithOrders();
             notifyListeners();
           },
           onError: (error) {
-            _errorMessage = 'Lỗi khi đồng bộ đơn hàng: $error';
+            _ordersLoaded = false;
+            _errorMessage = _errorHandler.getUserMessage(
+              error,
+              fallbackMessage: 'Lỗi khi đồng bộ đơn hàng',
+            );
             notifyListeners();
           },
         );
@@ -126,6 +152,8 @@ class RestaurantProvider extends ChangeNotifier {
   // Sync table statuses with actual orders
   // This fixes the issue where tables are marked as occupied but have no orders
   Future<void> _syncTableStatusesWithOrders() async {
+    if (!_ordersLoaded) return;
+
     bool hasChanges = false;
 
     for (var table in tables) {
@@ -153,8 +181,12 @@ class RestaurantProvider extends ChangeNotifier {
               // Update in Firestore
               try {
                 await _firestoreService.updateTable(table);
-              } catch (e) {
-                debugPrint('Error syncing table ${table.id}: $e');
+              } catch (e, stackTrace) {
+                _errorHandler.logError(
+                  e,
+                  stackTrace,
+                  context: 'Error syncing table ${table.id}',
+                );
               }
             }
           } else {
@@ -169,8 +201,12 @@ class RestaurantProvider extends ChangeNotifier {
 
               try {
                 await _firestoreService.updateTable(table);
-              } catch (e) {
-                debugPrint('Error syncing table ${table.id}: $e');
+              } catch (e, stackTrace) {
+                _errorHandler.logError(
+                  e,
+                  stackTrace,
+                  context: 'Error syncing table ${table.id}',
+                );
               }
             }
           }
@@ -186,8 +222,12 @@ class RestaurantProvider extends ChangeNotifier {
 
             try {
               await _firestoreService.updateTable(table);
-            } catch (e) {
-              debugPrint('Error syncing table ${table.id}: $e');
+            } catch (e, stackTrace) {
+              _errorHandler.logError(
+                e,
+                stackTrace,
+                context: 'Error syncing table ${table.id}',
+              );
             }
           } else if (order.status != OrderStatus.completed &&
               table.status == TableStatus.paymentPending) {
@@ -196,8 +236,12 @@ class RestaurantProvider extends ChangeNotifier {
 
             try {
               await _firestoreService.updateTable(table);
-            } catch (e) {
-              debugPrint('Error syncing table ${table.id}: $e');
+            } catch (e, stackTrace) {
+              _errorHandler.logError(
+                e,
+                stackTrace,
+                context: 'Error syncing table ${table.id}',
+              );
             }
           }
         }
@@ -224,8 +268,12 @@ class RestaurantProvider extends ChangeNotifier {
 
           try {
             await _firestoreService.updateTable(table);
-          } catch (e) {
-            debugPrint('Error syncing table ${table.id}: $e');
+          } catch (e, stackTrace) {
+            _errorHandler.logError(
+              e,
+              stackTrace,
+              context: 'Error syncing table ${table.id}',
+            );
           }
         } else if (tableOrders.isEmpty &&
             table.status != TableStatus.available) {
@@ -236,8 +284,12 @@ class RestaurantProvider extends ChangeNotifier {
 
           try {
             await _firestoreService.updateTable(table);
-          } catch (e) {
-            debugPrint('Error syncing table ${table.id}: $e');
+          } catch (e, stackTrace) {
+            _errorHandler.logError(
+              e,
+              stackTrace,
+              context: 'Error syncing table ${table.id}',
+            );
           }
         }
       }
@@ -267,10 +319,18 @@ class RestaurantProvider extends ChangeNotifier {
 
       _isLoading = false;
       notifyListeners();
-    } catch (e) {
-      _errorMessage = 'Lỗi khi làm mới dữ liệu: $e';
-      _isLoading = false;
-      notifyListeners();
+    } catch (e, stackTrace) {
+      _errorHandler.handleError(
+        e,
+        stackTrace,
+        context: 'Lỗi khi làm mới dữ liệu',
+        fallbackMessage: 'Lỗi khi làm mới dữ liệu',
+        onMessage: (message) {
+          _errorMessage = message;
+          _isLoading = false;
+          notifyListeners();
+        },
+      );
     }
   }
 
@@ -337,9 +397,17 @@ class RestaurantProvider extends ChangeNotifier {
       await Future.wait([_refreshOrders(), _refreshTables()]);
 
       return true;
-    } catch (e) {
-      _errorMessage = 'Lỗi khi tạo đơn hàng: $e';
-      notifyListeners();
+    } catch (e, stackTrace) {
+      _errorHandler.handleError(
+        e,
+        stackTrace,
+        context: 'Lỗi khi tạo đơn hàng',
+        fallbackMessage: 'Lỗi khi tạo đơn hàng',
+        onMessage: (message) {
+          _errorMessage = message;
+          notifyListeners();
+        },
+      );
       return false;
     }
   }
@@ -402,9 +470,17 @@ class RestaurantProvider extends ChangeNotifier {
       await Future.wait([_refreshOrders(), _refreshTables()]);
 
       return true;
-    } catch (e) {
-      _errorMessage = 'Lỗi khi cập nhật trạng thái đơn hàng: $e';
-      notifyListeners();
+    } catch (e, stackTrace) {
+      _errorHandler.handleError(
+        e,
+        stackTrace,
+        context: 'Lỗi khi cập nhật trạng thái đơn hàng',
+        fallbackMessage: 'Lỗi khi cập nhật trạng thái đơn hàng',
+        onMessage: (message) {
+          _errorMessage = message;
+          notifyListeners();
+        },
+      );
       return false;
     }
   }
@@ -413,9 +489,17 @@ class RestaurantProvider extends ChangeNotifier {
   Future<List<OrderModel>> getCompletedOrdersForTable(int tableId) async {
     try {
       return await _firestoreService.getCompletedOrdersForTable(tableId, menu);
-    } catch (e) {
-      _errorMessage = 'Lỗi khi lấy danh sách đơn hàng: $e';
-      notifyListeners();
+    } catch (e, stackTrace) {
+      _errorHandler.handleError(
+        e,
+        stackTrace,
+        context: 'Lỗi khi lấy danh sách đơn hàng',
+        fallbackMessage: 'Lỗi khi lấy danh sách đơn hàng',
+        onMessage: (message) {
+          _errorMessage = message;
+          notifyListeners();
+        },
+      );
       return [];
     }
   }
@@ -492,14 +576,26 @@ class RestaurantProvider extends ChangeNotifier {
         }
         tables = updatedTables;
         notifyListeners();
-      } catch (e) {
-        // Silent fail - stream will handle updates
+      } catch (e, stackTrace) {
+        _errorHandler.logError(
+          e,
+          stackTrace,
+          context: 'Error refreshing tables after payment',
+        );
       }
 
       return true;
-    } catch (e) {
-      _errorMessage = 'Lỗi khi xử lý thanh toán: $e';
-      notifyListeners();
+    } catch (e, stackTrace) {
+      _errorHandler.handleError(
+        e,
+        stackTrace,
+        context: 'Lỗi khi xử lý thanh toán',
+        fallbackMessage: 'Lỗi khi xử lý thanh toán',
+        onMessage: (message) {
+          _errorMessage = message;
+          notifyListeners();
+        },
+      );
       return false;
     }
   }
@@ -580,9 +676,17 @@ class RestaurantProvider extends ChangeNotifier {
       // Force refresh menu to ensure UI updates immediately
       await _refreshMenu();
       return true;
-    } catch (e) {
-      _errorMessage = 'Lỗi khi thêm món ăn: $e';
-      notifyListeners();
+    } catch (e, stackTrace) {
+      _errorHandler.handleError(
+        e,
+        stackTrace,
+        context: 'Lỗi khi thêm món ăn',
+        fallbackMessage: 'Lỗi khi thêm món ăn',
+        onMessage: (message) {
+          _errorMessage = message;
+          notifyListeners();
+        },
+      );
       return false;
     }
   }
@@ -594,9 +698,17 @@ class RestaurantProvider extends ChangeNotifier {
       // Force refresh menu to ensure UI updates immediately
       await _refreshMenu();
       return true;
-    } catch (e) {
-      _errorMessage = 'Lỗi khi cập nhật món ăn: $e';
-      notifyListeners();
+    } catch (e, stackTrace) {
+      _errorHandler.handleError(
+        e,
+        stackTrace,
+        context: 'Lỗi khi cập nhật món ăn',
+        fallbackMessage: 'Lỗi khi cập nhật món ăn',
+        onMessage: (message) {
+          _errorMessage = message;
+          notifyListeners();
+        },
+      );
       return false;
     }
   }
@@ -608,9 +720,17 @@ class RestaurantProvider extends ChangeNotifier {
       // Force refresh menu to ensure UI updates immediately
       await _refreshMenu();
       return true;
-    } catch (e) {
-      _errorMessage = 'Lỗi khi xóa món ăn: $e';
-      notifyListeners();
+    } catch (e, stackTrace) {
+      _errorHandler.handleError(
+        e,
+        stackTrace,
+        context: 'Lỗi khi xóa món ăn',
+        fallbackMessage: 'Lỗi khi xóa món ăn',
+        onMessage: (message) {
+          _errorMessage = message;
+          notifyListeners();
+        },
+      );
       return false;
     }
   }
@@ -621,9 +741,17 @@ class RestaurantProvider extends ChangeNotifier {
       await _firestoreService.addTable(table);
       await _refreshTables();
       return true;
-    } catch (e) {
-      _errorMessage = 'Lỗi khi thêm bàn: $e';
-      notifyListeners();
+    } catch (e, stackTrace) {
+      _errorHandler.handleError(
+        e,
+        stackTrace,
+        context: 'Lỗi khi thêm bàn',
+        fallbackMessage: 'Lỗi khi thêm bàn',
+        onMessage: (message) {
+          _errorMessage = message;
+          notifyListeners();
+        },
+      );
       return false;
     }
   }
@@ -634,9 +762,17 @@ class RestaurantProvider extends ChangeNotifier {
       await _firestoreService.updateTable(table);
       await _refreshTables();
       return true;
-    } catch (e) {
-      _errorMessage = 'Lỗi khi cập nhật bàn: $e';
-      notifyListeners();
+    } catch (e, stackTrace) {
+      _errorHandler.handleError(
+        e,
+        stackTrace,
+        context: 'Lỗi khi cập nhật bàn',
+        fallbackMessage: 'Lỗi khi cập nhật bàn',
+        onMessage: (message) {
+          _errorMessage = message;
+          notifyListeners();
+        },
+      );
       return false;
     }
   }
@@ -647,9 +783,17 @@ class RestaurantProvider extends ChangeNotifier {
       await _firestoreService.deleteTable(tableId);
       await _refreshTables();
       return true;
-    } catch (e) {
-      _errorMessage = 'Lỗi khi xóa bàn: $e';
-      notifyListeners();
+    } catch (e, stackTrace) {
+      _errorHandler.handleError(
+        e,
+        stackTrace,
+        context: 'Lỗi khi xóa bàn',
+        fallbackMessage: 'Lỗi khi xóa bàn',
+        onMessage: (message) {
+          _errorMessage = message;
+          notifyListeners();
+        },
+      );
       return false;
     }
   }
@@ -665,9 +809,17 @@ class RestaurantProvider extends ChangeNotifier {
         return true;
       }
       return false;
-    } catch (e) {
-      _errorMessage = 'Lỗi khi cập nhật trạng thái bàn: $e';
-      notifyListeners();
+    } catch (e, stackTrace) {
+      _errorHandler.handleError(
+        e,
+        stackTrace,
+        context: 'Lỗi khi cập nhật trạng thái bàn',
+        fallbackMessage: 'Lỗi khi cập nhật trạng thái bàn',
+        onMessage: (message) {
+          _errorMessage = message;
+          notifyListeners();
+        },
+      );
       return false;
     }
   }
@@ -680,8 +832,12 @@ class RestaurantProvider extends ChangeNotifier {
       // Update orders listener with new menu
       _updateOrdersListener();
       notifyListeners();
-    } catch (e) {
-      // Silent fail - stream will handle updates
+    } catch (e, stackTrace) {
+      _errorHandler.logError(
+        e,
+        stackTrace,
+        context: 'Error refreshing menu',
+      );
     }
   }
 
@@ -690,11 +846,17 @@ class RestaurantProvider extends ChangeNotifier {
     try {
       final updatedOrders = await _firestoreService.getActiveOrders(menu);
       activeOrders = updatedOrders;
+      _ordersLoaded = true;
       // Sync table statuses with actual orders after refresh
       await _syncTableStatusesWithOrders();
       notifyListeners();
-    } catch (e) {
-      // Silent fail - stream will handle updates
+    } catch (e, stackTrace) {
+      _ordersLoaded = false;
+      _errorHandler.logError(
+        e,
+        stackTrace,
+        context: 'Error refreshing orders',
+      );
     }
   }
 
@@ -706,8 +868,12 @@ class RestaurantProvider extends ChangeNotifier {
       // Sync table statuses with actual orders after refresh
       await _syncTableStatusesWithOrders();
       notifyListeners();
-    } catch (e) {
-      // Silent fail - stream will handle updates
+    } catch (e, stackTrace) {
+      _errorHandler.logError(
+        e,
+        stackTrace,
+        context: 'Error refreshing tables',
+      );
     }
   }
 
@@ -812,9 +978,17 @@ class RestaurantProvider extends ChangeNotifier {
     try {
       await _firestoreService.saveReport(report);
       return true;
-    } catch (e) {
-      _errorMessage = 'Lỗi khi lưu báo cáo: $e';
-      notifyListeners();
+    } catch (e, stackTrace) {
+      _errorHandler.handleError(
+        e,
+        stackTrace,
+        context: 'Lỗi khi lưu báo cáo',
+        fallbackMessage: 'Lỗi khi lưu báo cáo',
+        onMessage: (message) {
+          _errorMessage = message;
+          notifyListeners();
+        },
+      );
       return false;
     }
   }
@@ -826,9 +1000,17 @@ class RestaurantProvider extends ChangeNotifier {
   }) async {
     try {
       return await _firestoreService.getReports(type, limit: limit);
-    } catch (e) {
-      _errorMessage = 'Lỗi khi lấy báo cáo: $e';
-      notifyListeners();
+    } catch (e, stackTrace) {
+      _errorHandler.handleError(
+        e,
+        stackTrace,
+        context: 'Lỗi khi lấy báo cáo',
+        fallbackMessage: 'Lỗi khi lấy báo cáo',
+        onMessage: (message) {
+          _errorMessage = message;
+          notifyListeners();
+        },
+      );
       return [];
     }
   }
@@ -854,9 +1036,17 @@ class RestaurantProvider extends ChangeNotifier {
   Future<List<ShiftModel>> getShifts() async {
     try {
       return await _firestoreService.getShifts();
-    } catch (e) {
-      _errorMessage = 'Lỗi khi lấy ca làm: $e';
-      notifyListeners();
+    } catch (e, stackTrace) {
+      _errorHandler.handleError(
+        e,
+        stackTrace,
+        context: 'Lỗi khi lấy ca làm',
+        fallbackMessage: 'Lỗi khi lấy ca làm',
+        onMessage: (message) {
+          _errorMessage = message;
+          notifyListeners();
+        },
+      );
       return [];
     }
   }
@@ -872,9 +1062,17 @@ class RestaurantProvider extends ChangeNotifier {
     try {
       await _firestoreService.addShift(shift);
       return true;
-    } catch (e) {
-      _errorMessage = 'Lỗi khi thêm ca làm: $e';
-      notifyListeners();
+    } catch (e, stackTrace) {
+      _errorHandler.handleError(
+        e,
+        stackTrace,
+        context: 'Lỗi khi thêm ca làm',
+        fallbackMessage: 'Lỗi khi thêm ca làm',
+        onMessage: (message) {
+          _errorMessage = message;
+          notifyListeners();
+        },
+      );
       return false;
     }
   }
@@ -884,9 +1082,17 @@ class RestaurantProvider extends ChangeNotifier {
     try {
       await _firestoreService.updateShift(shift);
       return true;
-    } catch (e) {
-      _errorMessage = 'Lỗi khi cập nhật ca làm: $e';
-      notifyListeners();
+    } catch (e, stackTrace) {
+      _errorHandler.handleError(
+        e,
+        stackTrace,
+        context: 'Lỗi khi cập nhật ca làm',
+        fallbackMessage: 'Lỗi khi cập nhật ca làm',
+        onMessage: (message) {
+          _errorMessage = message;
+          notifyListeners();
+        },
+      );
       return false;
     }
   }
@@ -896,9 +1102,17 @@ class RestaurantProvider extends ChangeNotifier {
     try {
       await _firestoreService.deleteShift(shiftId);
       return true;
-    } catch (e) {
-      _errorMessage = 'Lỗi khi xóa ca làm: $e';
-      notifyListeners();
+    } catch (e, stackTrace) {
+      _errorHandler.handleError(
+        e,
+        stackTrace,
+        context: 'Lỗi khi xóa ca làm',
+        fallbackMessage: 'Lỗi khi xóa ca làm',
+        onMessage: (message) {
+          _errorMessage = message;
+          notifyListeners();
+        },
+      );
       return false;
     }
   }
@@ -907,9 +1121,17 @@ class RestaurantProvider extends ChangeNotifier {
   Future<List<ShiftModel>> getShiftsForEmployee(String employeeId) async {
     try {
       return await _firestoreService.getShiftsForEmployee(employeeId);
-    } catch (e) {
-      _errorMessage = 'Lỗi khi lấy ca làm: $e';
-      notifyListeners();
+    } catch (e, stackTrace) {
+      _errorHandler.handleError(
+        e,
+        stackTrace,
+        context: 'Lỗi khi lấy ca làm',
+        fallbackMessage: 'Lỗi khi lấy ca làm',
+        onMessage: (message) {
+          _errorMessage = message;
+          notifyListeners();
+        },
+      );
       return [];
     }
   }
@@ -936,9 +1158,17 @@ class RestaurantProvider extends ChangeNotifier {
         return shiftDate.isAfter(weekStart.subtract(const Duration(days: 1))) &&
             shiftDate.isBefore(weekEnd.add(const Duration(days: 1)));
       }).toList();
-    } catch (e) {
-      _errorMessage = 'Lỗi khi lấy ca làm: $e';
-      notifyListeners();
+    } catch (e, stackTrace) {
+      _errorHandler.handleError(
+        e,
+        stackTrace,
+        context: 'Lỗi khi lấy ca làm',
+        fallbackMessage: 'Lỗi khi lấy ca làm',
+        onMessage: (message) {
+          _errorMessage = message;
+          notifyListeners();
+        },
+      );
       return [];
     }
   }
@@ -959,9 +1189,17 @@ class RestaurantProvider extends ChangeNotifier {
         endTime,
         excludeShiftId: excludeShiftId,
       );
-    } catch (e) {
-      _errorMessage = 'Lỗi khi kiểm tra ca làm trùng: $e';
-      notifyListeners();
+    } catch (e, stackTrace) {
+      _errorHandler.handleError(
+        e,
+        stackTrace,
+        context: 'Lỗi khi kiểm tra ca làm trùng',
+        fallbackMessage: 'Lỗi khi kiểm tra ca làm trùng',
+        onMessage: (message) {
+          _errorMessage = message;
+          notifyListeners();
+        },
+      );
       return [];
     }
   }
@@ -977,9 +1215,17 @@ class RestaurantProvider extends ChangeNotifier {
   Future<List<EmployeeModel>> getEmployees() async {
     try {
       return await _firestoreService.getEmployees();
-    } catch (e) {
-      _errorMessage = 'Lỗi khi lấy danh sách nhân viên: $e';
-      notifyListeners();
+    } catch (e, stackTrace) {
+      _errorHandler.handleError(
+        e,
+        stackTrace,
+        context: 'Lỗi khi lấy danh sách nhân viên',
+        fallbackMessage: 'Lỗi khi lấy danh sách nhân viên',
+        onMessage: (message) {
+          _errorMessage = message;
+          notifyListeners();
+        },
+      );
       return [];
     }
   }
@@ -989,9 +1235,17 @@ class RestaurantProvider extends ChangeNotifier {
     try {
       await _firestoreService.addEmployee(employee);
       return true;
-    } catch (e) {
-      _errorMessage = 'Lỗi khi thêm nhân viên: $e';
-      notifyListeners();
+    } catch (e, stackTrace) {
+      _errorHandler.handleError(
+        e,
+        stackTrace,
+        context: 'Lỗi khi thêm nhân viên',
+        fallbackMessage: 'Lỗi khi thêm nhân viên',
+        onMessage: (message) {
+          _errorMessage = message;
+          notifyListeners();
+        },
+      );
       return false;
     }
   }
@@ -1001,9 +1255,17 @@ class RestaurantProvider extends ChangeNotifier {
     try {
       await _firestoreService.updateEmployee(employee);
       return true;
-    } catch (e) {
-      _errorMessage = 'Lỗi khi cập nhật nhân viên: $e';
-      notifyListeners();
+    } catch (e, stackTrace) {
+      _errorHandler.handleError(
+        e,
+        stackTrace,
+        context: 'Lỗi khi cập nhật nhân viên',
+        fallbackMessage: 'Lỗi khi cập nhật nhân viên',
+        onMessage: (message) {
+          _errorMessage = message;
+          notifyListeners();
+        },
+      );
       return false;
     }
   }
@@ -1013,9 +1275,17 @@ class RestaurantProvider extends ChangeNotifier {
     try {
       await _firestoreService.deleteEmployee(employeeId);
       return true;
-    } catch (e) {
-      _errorMessage = 'Lỗi khi xóa nhân viên: $e';
-      notifyListeners();
+    } catch (e, stackTrace) {
+      _errorHandler.handleError(
+        e,
+        stackTrace,
+        context: 'Lỗi khi xóa nhân viên',
+        fallbackMessage: 'Lỗi khi xóa nhân viên',
+        onMessage: (message) {
+          _errorMessage = message;
+          notifyListeners();
+        },
+      );
       return false;
     }
   }
@@ -1024,9 +1294,17 @@ class RestaurantProvider extends ChangeNotifier {
   Future<EmployeeModel?> getEmployeeByUsername(String username) async {
     try {
       return await _firestoreService.getEmployeeByUsername(username);
-    } catch (e) {
-      _errorMessage = 'Lỗi khi tìm nhân viên: $e';
-      notifyListeners();
+    } catch (e, stackTrace) {
+      _errorHandler.handleError(
+        e,
+        stackTrace,
+        context: 'Lỗi khi tìm nhân viên',
+        fallbackMessage: 'Lỗi khi tìm nhân viên',
+        onMessage: (message) {
+          _errorMessage = message;
+          notifyListeners();
+        },
+      );
       return null;
     }
   }

@@ -6,6 +6,8 @@ import '../models/enums.dart';
 import '../providers/restaurant_provider.dart';
 import '../providers/app_strings.dart';
 import '../theme/app_theme.dart';
+import '../services/error_handler.dart';
+import '../utils/input_sanitizer.dart';
 
 class AddShiftDialog extends StatefulWidget {
   final ShiftModel? shiftToEdit;
@@ -24,6 +26,7 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
   TimeOfDay _endTime = const TimeOfDay(hour: 17, minute: 0);
   ShiftStatus _status = ShiftStatus.scheduled;
   final _notesController = TextEditingController();
+  final ErrorHandler _errorHandler = ErrorHandler();
 
   @override
   void initState() {
@@ -346,6 +349,17 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
         ElevatedButton(
           onPressed: () async {
             if (_formKey.currentState!.validate()) {
+              if (!_isValidShiftTime()) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Giờ kết thúc phải sau giờ bắt đầu'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+                return;
+              }
               final provider = Provider.of<RestaurantProvider>(
                 context,
                 listen: false,
@@ -483,17 +497,27 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                   startTime: _startTime,
                   endTime: _endTime,
                   status: _status,
-                  notes: _notesController.text.isEmpty
+                  notes: InputSanitizer.sanitizeNotes(_notesController.text)
+                          .isEmpty
                       ? null
-                      : _notesController.text,
+                      : InputSanitizer.sanitizeNotes(_notesController.text),
                 );
 
                 Navigator.pop(context, shift);
-              } catch (e) {
+              } catch (e, stackTrace) {
+                final message = _errorHandler.getUserMessage(
+                  e,
+                  fallbackMessage: 'Lỗi khi lấy thông tin nhân viên',
+                );
+                _errorHandler.logError(
+                  e,
+                  stackTrace,
+                  context: 'Error loading employee for shift',
+                );
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('Lỗi khi lấy thông tin nhân viên: $e'),
+                      content: Text(message),
                       backgroundColor: Colors.red,
                     ),
                   );
@@ -513,5 +537,11 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
 
   String _formatTime(TimeOfDay time) {
     return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+  }
+
+  bool _isValidShiftTime() {
+    final startMinutes = _startTime.hour * 60 + _startTime.minute;
+    final endMinutes = _endTime.hour * 60 + _endTime.minute;
+    return endMinutes > startMinutes;
   }
 }

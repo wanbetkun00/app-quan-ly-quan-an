@@ -191,23 +191,32 @@ class FirestoreService {
   Stream<List<OrderModel>> getActiveOrdersStream(List<MenuItem> menu) {
     return _firestore
         .collection(ordersCollection)
-        .where('status', whereIn: ['pending', 'cooking', 'readyToServe', 'completed'])
         .orderBy('timestamp', descending: true)
         .snapshots()
-        .map(
-          (snapshot) => snapshot.docs
+        .map((snapshot) {
+          final activeStatuses = {
+            'pending',
+            'cooking',
+            'readyToServe',
+            'completed',
+          };
+          return snapshot.docs
               .map((doc) {
                 final data = doc.data();
+                final status = data['status'] as String?;
                 // Exclude paid orders - only show unpaid orders
                 if (data['isPaid'] == true) {
+                  return null;
+                }
+                if (status != null && !activeStatuses.contains(status)) {
                   return null;
                 }
                 return _orderFromFirestore(doc.id, data, menu);
               })
               .where((order) => order != null)
               .cast<OrderModel>()
-              .toList(),
-        );
+              .toList();
+        });
   }
 
   // Get active orders once (not paid) - requires menu
@@ -215,14 +224,18 @@ class FirestoreService {
   Future<List<OrderModel>> getActiveOrders(List<MenuItem> menu) async {
     final snapshot = await _firestore
         .collection(ordersCollection)
-        .where('status', whereIn: ['pending', 'cooking', 'readyToServe', 'completed'])
         .orderBy('timestamp', descending: true)
         .get();
+    final activeStatuses = {'pending', 'cooking', 'readyToServe', 'completed'};
     return snapshot.docs
         .map((doc) {
           final data = doc.data();
+          final status = data['status'] as String?;
           // Exclude paid orders - only show unpaid orders
           if (data['isPaid'] == true) {
+            return null;
+          }
+          if (status != null && !activeStatuses.contains(status)) {
             return null;
           }
           return _orderFromFirestore(doc.id, data, menu);
@@ -234,9 +247,9 @@ class FirestoreService {
 
   // Add order
   Future<String> addOrder(OrderModel order) async {
-    final docRef = await _firestore
-        .collection(ordersCollection)
-        .add(_orderToFirestore(order));
+    final data = _orderToFirestore(order);
+    data['isPaid'] = false;
+    final docRef = await _firestore.collection(ordersCollection).add(data);
     return docRef.id;
   }
 

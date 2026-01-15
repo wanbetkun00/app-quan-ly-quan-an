@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../models/models.dart';
 import '../theme/app_theme.dart';
 import '../providers/app_strings.dart';
+import '../utils/input_sanitizer.dart';
 
 class AddTableDialog extends StatefulWidget {
   final TableModel? tableToEdit;
@@ -38,7 +40,7 @@ class _AddTableDialogState extends State<AddTableDialog> {
 
   void _submit() {
     if (_formKey.currentState!.validate()) {
-      final name = _nameController.text.trim();
+      final name = InputSanitizer.sanitizeName(_nameController.text);
       final id = int.tryParse(_idController.text.trim());
 
       if (id == null || id <= 0) {
@@ -96,6 +98,10 @@ class _AddTableDialogState extends State<AddTableDialog> {
                     helperText: context.strings.tableNumberHelper,
                   ),
                   keyboardType: TextInputType.number,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(6),
+                  ],
                   enabled:
                       widget.tableToEdit == null, // Không cho sửa ID khi edit
                   validator: (value) {
@@ -121,7 +127,12 @@ class _AddTableDialogState extends State<AddTableDialog> {
                     helperText: context.strings.tableNameExample,
                   ),
                   validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
+                    final sanitized =
+                        value == null ? '' : InputSanitizer.sanitizeName(value);
+                    if (sanitized.isEmpty) {
+                      return context.strings.tableNameRequired;
+                    }
+                    if (sanitized.length < 2) {
                       return context.strings.tableNameRequired;
                     }
                     return null;

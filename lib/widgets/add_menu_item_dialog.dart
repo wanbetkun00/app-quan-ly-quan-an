@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:flutter/services.dart';
 import 'dart:io';
 import '../models/models.dart';
 import '../theme/app_theme.dart';
+import '../services/error_handler.dart';
+import '../utils/input_sanitizer.dart';
 
 class AddMenuItemDialog extends StatefulWidget {
   final MenuItem? itemToEdit; // Nếu có thì đây là chế độ sửa
@@ -24,6 +27,7 @@ class _AddMenuItemDialogState extends State<AddMenuItemDialog> {
   File? _pickedImage;
   String? _imageUrl;
   final ImagePicker _picker = ImagePicker();
+  final ErrorHandler _errorHandler = ErrorHandler();
 
   @override
   void initState() {
@@ -122,11 +126,20 @@ class _AddMenuItemDialogState extends State<AddMenuItemDialog> {
           );
         }
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      final message = _errorHandler.getUserMessage(
+        e,
+        fallbackMessage: 'Lỗi khi chọn ảnh',
+      );
+      _errorHandler.logError(
+        e,
+        stackTrace,
+        context: 'Error picking image',
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Lỗi khi chọn ảnh: $e'),
+            content: Text(message),
             backgroundColor: Colors.red,
           ),
         );
@@ -135,7 +148,7 @@ class _AddMenuItemDialogState extends State<AddMenuItemDialog> {
   }
 
   void _useImageUrl() {
-    final url = _imageUrlController.text.trim();
+    final url = InputSanitizer.sanitizeUrl(_imageUrlController.text);
     if (url.isNotEmpty) {
       setState(() {
         _imageUrl = url;
@@ -286,7 +299,7 @@ class _AddMenuItemDialogState extends State<AddMenuItemDialog> {
             ),
             TextButton(
               onPressed: () {
-                final url = urlController.text.trim();
+                final url = InputSanitizer.sanitizeUrl(urlController.text);
                 if (url.isEmpty) {
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -536,7 +549,7 @@ class _AddMenuItemDialogState extends State<AddMenuItemDialog> {
 
   void _submit() {
     if (_formKey.currentState!.validate()) {
-      final name = _nameController.text.trim();
+      final name = InputSanitizer.sanitizeName(_nameController.text);
       final price = double.tryParse(_priceController.text.trim());
       
       if (price == null || price <= 0) {
@@ -630,8 +643,13 @@ class _AddMenuItemDialogState extends State<AddMenuItemDialog> {
                     prefixIcon: Icon(Icons.restaurant_menu),
                   ),
                   validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
+                    final sanitized =
+                        value == null ? '' : InputSanitizer.sanitizeName(value);
+                    if (sanitized.isEmpty) {
                       return 'Vui lòng nhập tên món ăn';
+                    }
+                    if (sanitized.length < 2) {
+                      return 'Tên món ăn quá ngắn';
                     }
                     return null;
                   },
@@ -647,6 +665,10 @@ class _AddMenuItemDialogState extends State<AddMenuItemDialog> {
                     prefixIcon: Icon(Icons.attach_money),
                   ),
                   keyboardType: TextInputType.number,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(9),
+                  ],
                   validator: (value) {
                     if (value == null || value.trim().isEmpty) {
                       return 'Vui lòng nhập giá';

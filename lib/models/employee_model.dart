@@ -4,7 +4,7 @@ class EmployeeModel {
   final String id;
   final String username;
   final String name;
-  final String password; // Trong thực tế nên hash password
+  final String password; // Password đã được hash trước khi lưu
   final UserRole role;
   final bool isActive;
   final DateTime? createdAt;
@@ -27,7 +27,7 @@ class EmployeeModel {
       'id': id,
       'username': username,
       'name': name,
-      'password': password, // Trong thực tế nên hash
+      'password': password, // Password đã hash
       'role': role.name,
       'isActive': isActive,
       'createdAt': createdAt?.toIso8601String(),

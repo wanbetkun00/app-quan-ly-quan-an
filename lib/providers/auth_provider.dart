@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../models/enums.dart';
+import '../services/error_handler.dart';
 import '../services/firestore_service.dart';
+import '../services/password_service.dart';
 import '../models/employee_model.dart';
 
 class AuthProvider extends ChangeNotifier {
@@ -10,6 +12,8 @@ class AuthProvider extends ChangeNotifier {
   EmployeeModel? _currentEmployee;
 
   final FirestoreService _firestoreService = FirestoreService();
+  final PasswordService _passwordService = PasswordService();
+  final ErrorHandler _errorHandler = ErrorHandler();
 
   UserRole? get role => _role;
   String? get username => _username;
@@ -22,14 +26,20 @@ class AuthProvider extends ChangeNotifier {
   // Fallback: Các tài khoản demo (staff/1234, manager/1234) vẫn hoạt động
   Future<bool> login(String username, String password) async {
     try {
+      final normalizedUsername = username.trim();
       // Tìm employee theo username trong Firestore
-      final employee = await _firestoreService.getEmployeeByUsername(username);
+      final employee = await _firestoreService.getEmployeeByUsername(
+        normalizedUsername,
+      );
 
       if (employee != null) {
         // Tìm thấy employee trong Firestore
-        // Kiểm tra password (trong thực tế nên hash password)
-        if (employee.password != password) {
-          debugPrint('Invalid password for user: $username');
+        final isPasswordValid = _passwordService.verifyPassword(
+          password,
+          employee.password,
+        );
+        if (!isPasswordValid) {
+          debugPrint('Invalid password for user: $normalizedUsername');
           return false;
         }
 
@@ -47,20 +57,43 @@ class AuthProvider extends ChangeNotifier {
         notifyListeners();
 
         debugPrint(
-          'Login successful from Firestore: username=$username, role=${employee.role.name}, employeeId=${employee.id}',
+          'Login successful from Firestore: username=$normalizedUsername, role=${employee.role.name}, employeeId=${employee.id}',
         );
+
+        if (!_passwordService.isHashed(employee.password)) {
+          final hashedPassword = _passwordService.hashPassword(password);
+          try {
+            await _firestoreService.updateEmployee(
+              employee.copyWith(
+                password: hashedPassword,
+                updatedAt: DateTime.now(),
+              ),
+            );
+          } catch (e, stackTrace) {
+            _errorHandler.logError(
+              e,
+              stackTrace,
+              context: 'Failed to migrate password hash for $normalizedUsername',
+            );
+          }
+        }
+
         return true;
       }
 
       // Fallback: Kiểm tra các tài khoản demo (nếu không tìm thấy trong Firestore)
       debugPrint(
-        'Employee not found in Firestore, checking demo accounts: $username',
+        'Employee not found in Firestore, checking demo accounts: $normalizedUsername',
       );
-      return _loginDemoAccount(username, password);
-    } catch (e) {
-      debugPrint('Error during login: $e');
+      return _loginDemoAccount(normalizedUsername, password);
+    } catch (e, stackTrace) {
+      _errorHandler.handleError(
+        e,
+        stackTrace,
+        context: 'Error during login',
+      );
       // Nếu có lỗi với Firestore, thử đăng nhập với tài khoản demo
-      return _loginDemoAccount(username, password);
+      return _loginDemoAccount(username.trim(), password);
     }
   }
 
