@@ -1,10 +1,14 @@
+import 'dart:typed_data';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:flutter/services.dart';
-import 'dart:io';
+
 import '../models/models.dart';
 import '../theme/app_theme.dart';
+import '../services/cloudinary_service.dart';
 import '../services/error_handler.dart';
 import '../utils/input_sanitizer.dart';
 
@@ -24,10 +28,13 @@ class _AddMenuItemDialogState extends State<AddMenuItemDialog> {
   final _imageUrlController = TextEditingController();
   
   MenuCategory _selectedCategory = MenuCategory.food;
-  File? _pickedImage;
+  XFile? _pickedImage;
+  Uint8List? _pickedImageBytes; // Dùng cho preview (tránh Image.file trên web)
   String? _imageUrl;
+  bool _isSubmitting = false;
   final ImagePicker _picker = ImagePicker();
   final ErrorHandler _errorHandler = ErrorHandler();
+  final CloudinaryService _cloudinaryService = CloudinaryService();
 
   @override
   void initState() {
@@ -39,24 +46,8 @@ class _AddMenuItemDialogState extends State<AddMenuItemDialog> {
       _priceController.text = item.price.toStringAsFixed(0);
       _selectedCategory = item.category;
       if (item.imageUrl != null) {
-        if (item.imageUrl!.startsWith('http')) {
-          _imageUrl = item.imageUrl;
-          _imageUrlController.text = item.imageUrl!;
-        } else {
-          // Nếu là file path, thử load file
-          try {
-            final file = File(item.imageUrl!);
-            if (file.existsSync()) {
-              _pickedImage = file;
-            } else {
-              _imageUrl = item.imageUrl;
-              _imageUrlController.text = item.imageUrl!;
-            }
-          } catch (e) {
-            _imageUrl = item.imageUrl;
-            _imageUrlController.text = item.imageUrl!;
-          }
-        }
+        _imageUrl = item.imageUrl;
+        _imageUrlController.text = item.imageUrl!;
       }
     }
   }
@@ -71,36 +62,31 @@ class _AddMenuItemDialogState extends State<AddMenuItemDialog> {
 
   Future<void> _pickImageFromGallery() async {
     try {
-      // Kiểm tra và yêu cầu quyền truy cập
-      PermissionStatus? status;
-      if (Platform.isAndroid) {
-        // Android 13+ sử dụng READ_MEDIA_IMAGES, còn lại dùng READ_EXTERNAL_STORAGE
-        if (await Permission.photos.isGranted) {
-          status = PermissionStatus.granted;
-        } else {
-          status = await Permission.photos.request();
+      // Trên web không dùng Platform/permission_handler; trên mobile yêu cầu quyền
+      if (!kIsWeb) {
+        PermissionStatus? status;
+        if (defaultTargetPlatform == TargetPlatform.android) {
+          if (await Permission.photos.isGranted) {
+            status = PermissionStatus.granted;
+          } else {
+            status = await Permission.photos.request();
+          }
+        } else if (defaultTargetPlatform == TargetPlatform.iOS) {
+          status = await Permission.photos.status;
+          if (!status.isGranted) status = await Permission.photos.request();
         }
-      } else if (Platform.isIOS) {
-        status = await Permission.photos.status;
-        if (!status.isGranted) {
-          status = await Permission.photos.request();
-        }
-      }
-      
-      if (status != null && !status.isGranted) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('Cần quyền truy cập thư viện ảnh để chọn ảnh'),
-              backgroundColor: Colors.orange,
-              action: SnackBarAction(
-                label: 'Mở cài đặt',
-                onPressed: () => openAppSettings(),
+        if (status != null && !status.isGranted) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Text('Cần quyền truy cập thư viện ảnh để chọn ảnh'),
+                backgroundColor: Colors.orange,
+                action: SnackBarAction(label: 'Mở cài đặt', onPressed: () => openAppSettings()),
               ),
-            ),
-          );
+            );
+          }
+          return;
         }
-        return;
       }
 
       final XFile? image = await _picker.pickImage(
@@ -109,11 +95,14 @@ class _AddMenuItemDialogState extends State<AddMenuItemDialog> {
         maxHeight: 800,
         imageQuality: 85,
       );
-      
+
       if (image != null) {
+        final bytes = await image.readAsBytes();
+        if (!mounted) return;
         setState(() {
-          _pickedImage = File(image.path);
-          _imageUrl = null; // Clear URL when picking from gallery
+          _pickedImage = image;
+          _pickedImageBytes = bytes;
+          _imageUrl = null;
           _imageUrlController.clear();
         });
         if (mounted) {
@@ -152,18 +141,18 @@ class _AddMenuItemDialogState extends State<AddMenuItemDialog> {
     if (url.isNotEmpty) {
       setState(() {
         _imageUrl = url;
-        _pickedImage = null; // Clear picked image when using URL
+        _pickedImage = null;
+        _pickedImageBytes = null;
       });
     } else {
-      setState(() {
-        _imageUrl = null;
-      });
+      setState(() => _imageUrl = null);
     }
   }
 
   void _clearImage() {
     setState(() {
       _pickedImage = null;
+      _pickedImageBytes = null;
       _imageUrl = null;
       _imageUrlController.clear();
     });
@@ -345,14 +334,14 @@ class _AddMenuItemDialogState extends State<AddMenuItemDialog> {
   }
 
   Widget _buildImagePreview() {
-    // Hiển thị ảnh đã chọn từ gallery
-    if (_pickedImage != null) {
+    // Hiển thị ảnh đã chọn từ gallery (dùng Image.memory để chạy trên cả Web và mobile)
+    if (_pickedImageBytes != null) {
       return Stack(
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(12),
-            child: Image.file(
-              _pickedImage!,
+            child: Image.memory(
+              _pickedImageBytes!,
               width: double.infinity,
               height: 200,
               fit: BoxFit.cover,
@@ -490,38 +479,40 @@ class _AddMenuItemDialogState extends State<AddMenuItemDialog> {
           ],
         );
       } else {
-        // File path
-        try {
-          final file = File(existingImageUrl);
-          if (file.existsSync()) {
-            return Stack(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: Image.file(
-                    file,
-                    width: double.infinity,
-                    height: 200,
-                    fit: BoxFit.cover,
-                  ),
+        // Đường dẫn file local (không preview được trên web; giữ lại ảnh cũ khi lưu)
+        return Stack(
+          children: [
+            Container(
+              width: double.infinity,
+              height: 200,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.photo_library, size: 48, color: Colors.grey),
+                    SizedBox(height: 8),
+                    Text('Ảnh đã lưu', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                  ],
                 ),
-                Positioned(
-                  top: 8,
-                  right: 8,
-                  child: IconButton(
-                    icon: const Icon(Icons.close, color: Colors.white),
-                    style: IconButton.styleFrom(
-                      backgroundColor: Colors.black.withValues(alpha: 0.5),
-                    ),
-                    onPressed: _clearImage,
-                  ),
+              ),
+            ),
+            Positioned(
+              top: 8,
+              right: 8,
+              child: IconButton(
+                icon: const Icon(Icons.close, color: Colors.white),
+                style: IconButton.styleFrom(
+                  backgroundColor: Colors.black.withValues(alpha: 0.5),
                 ),
-              ],
-            );
-          }
-        } catch (e) {
-          // Fall through to empty state
-        }
+                onPressed: _clearImage,
+              ),
+            ),
+          ],
+        );
       }
     }
     return Container(
@@ -547,43 +538,62 @@ class _AddMenuItemDialogState extends State<AddMenuItemDialog> {
     );
   }
 
-  void _submit() {
-    if (_formKey.currentState!.validate()) {
-      final name = InputSanitizer.sanitizeName(_nameController.text);
-      final price = double.tryParse(_priceController.text.trim());
-      
-      if (price == null || price <= 0) {
+  Future<void> _submit() async {
+    if (_formKey.currentState!.validate() == false) return;
+    if (_isSubmitting) return;
+
+    final name = InputSanitizer.sanitizeName(_nameController.text);
+    final price = double.tryParse(_priceController.text.trim());
+
+    if (price == null || price <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Vui lòng nhập giá hợp lệ'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    // Xác định nguồn ảnh: upload lên Cloudinary nếu chọn từ thư viện
+    String? finalImageUrl;
+    if (_pickedImage != null) {
+      setState(() => _isSubmitting = true);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Đang tải ảnh lên Cloudinary...'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      final url = await _cloudinaryService.uploadImage(_pickedImage!);
+      if (!mounted) return;
+      setState(() => _isSubmitting = false);
+      if (url == null || url.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Vui lòng nhập giá hợp lệ'),
+            content: Text('Tải ảnh lên thất bại. Vui lòng thử lại hoặc dùng link ảnh.'),
             backgroundColor: Colors.red,
           ),
         );
         return;
       }
-
-      // Determine image source
-      String? finalImageUrl;
-      if (_pickedImage != null) {
-        // For now, we'll use the file path. In production, you'd upload to server/storage
-        finalImageUrl = _pickedImage!.path;
-      } else if (_imageUrl != null && _imageUrl!.isNotEmpty) {
-        finalImageUrl = _imageUrl;
-      } else if (widget.itemToEdit?.imageUrl != null) {
-        // Giữ nguyên ảnh cũ nếu không thay đổi
-        finalImageUrl = widget.itemToEdit!.imageUrl;
-      }
-
-      final updatedItem = MenuItem(
-        id: widget.itemToEdit?.id ?? DateTime.now().millisecondsSinceEpoch,
-        name: name,
-        price: price,
-        category: _selectedCategory,
-        imageUrl: finalImageUrl,
-      );
-
-      Navigator.of(context).pop(updatedItem);
+      finalImageUrl = url;
+    } else if (_imageUrl != null && _imageUrl!.isNotEmpty) {
+      finalImageUrl = _imageUrl;
+    } else if (widget.itemToEdit?.imageUrl != null) {
+      finalImageUrl = widget.itemToEdit!.imageUrl;
     }
+
+    final updatedItem = MenuItem(
+      id: widget.itemToEdit?.id ?? DateTime.now().millisecondsSinceEpoch,
+      name: name,
+      price: price,
+      category: _selectedCategory,
+      imageUrl: finalImageUrl,
+    );
+
+    if (mounted) Navigator.of(context).pop(updatedItem);
   }
 
   @override
@@ -722,12 +732,21 @@ class _AddMenuItemDialogState extends State<AddMenuItemDialog> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: ElevatedButton(
-                        onPressed: _submit,
+                        onPressed: _isSubmitting ? null : _submit,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppTheme.primaryOrange,
                           foregroundColor: Colors.white,
                         ),
-                        child: Text(widget.itemToEdit == null ? 'Thêm món' : 'Cập nhật'),
+                        child: _isSubmitting
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : Text(widget.itemToEdit == null ? 'Thêm món' : 'Cập nhật'),
                       ),
                     ),
                   ],
