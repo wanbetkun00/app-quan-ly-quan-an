@@ -15,7 +15,7 @@
 
 - Áp dụng kiến thức lập trình **Flutter** vào thực tế.
 - Rèn luyện tư duy tổ chức và quản lý Source Code.
-- Xây dựng giao diện (UI/UX) thân thiện, tối giản, dễ sử dụng.
+- Xây dựng giao diện (UI/UX) hiện đại kết hợp với tối giản và dễ sử dụng cho người dùng.
 - Kiến trúc hệ thống có khả năng mở rộng trong tương lai.
 
 ## 🧠 Công nghệ sử dụng
