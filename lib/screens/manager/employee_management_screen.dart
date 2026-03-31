@@ -84,12 +84,12 @@ class EmployeeManagementScreen extends StatelessWidget {
     EmployeeModel employee,
     RestaurantProvider provider,
   ) {
-    final roleColor = employee.role == UserRole.manager
-        ? AppTheme.primaryOrange
-        : AppTheme.darkGreyText;
-    final roleText = employee.role == UserRole.manager
-        ? 'Quản lý'
-        : 'Nhân viên';
+    final roleColor = switch (employee.role) {
+      UserRole.manager => AppTheme.primaryOrange,
+      UserRole.cashier => Colors.indigo,
+      UserRole.waiter => AppTheme.darkGreyText,
+    };
+    final roleText = employee.role.displayNameVi;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -103,9 +103,11 @@ class EmployeeManagementScreen extends StatelessWidget {
             border: Border.all(color: roleColor, width: 2),
           ),
           child: Icon(
-            employee.role == UserRole.manager
-                ? Icons.admin_panel_settings
-                : Icons.person,
+            switch (employee.role) {
+              UserRole.manager => Icons.admin_panel_settings,
+              UserRole.cashier => Icons.point_of_sale,
+              UserRole.waiter => Icons.room_service,
+            },
             color: roleColor,
           ),
         ),

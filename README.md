@@ -71,7 +71,7 @@ lib/
 ├── screens/         # Các màn hình giao diện (UI Screens)
 ├── services/        # Xử lý Logic, API, Firebase Service
 ├── theme/           # Cấu hình giao diện chung
-├── utils/           # Các hàm tiện ích hỗ trợ
+├── utils/           # Các hàm tiện ích hỗ trợ, dữ liệu mẫu
 ├── widgets/         # Các Widget tái sử dụng
 ├── firebase_options.dart
 └── main.dart

@@ -9,6 +9,7 @@ import '../../theme/app_theme.dart';
 import '../../utils/vnd_format.dart';
 import '../../widgets/add_menu_item_dialog.dart';
 import '../../widgets/add_table_dialog.dart';
+import '../../widgets/role_guard.dart';
 import 'reports_screen.dart';
 import 'shift_management_screen.dart';
 import 'employee_management_screen.dart';
@@ -21,36 +22,38 @@ class ManagerDashboardScreen extends StatelessWidget {
     final provider = Provider.of<RestaurantProvider>(context);
     final langProvider = Provider.of<LanguageProvider>(context);
 
-    return DefaultTabController(
-      length: 6,
-      child: Scaffold(
-        appBar: AppBar(
-          title: Text(context.strings.managerTitle),
-          actions: [
-            TextButton(
-              onPressed: langProvider.toggleLanguage,
-              child: Text(
-                langProvider.languageCode,
-                style: const TextStyle(fontWeight: FontWeight.bold),
+    return RoleGuard(
+      allowedRoles: const [UserRole.manager],
+      child: DefaultTabController(
+        length: 6,
+        child: Scaffold(
+          appBar: AppBar(
+            title: Text(context.strings.managerTitle),
+            actions: [
+              TextButton(
+                onPressed: langProvider.toggleLanguage,
+                child: Text(
+                  langProvider.languageCode,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
               ),
-            ),
-          ],
-          bottom: TabBar(
-            labelColor: AppTheme.primaryOrange,
-            indicatorColor: AppTheme.primaryOrange,
-            isScrollable: true,
-            tabs: [
-              Tab(text: context.strings.mgrTabDashboard),
-              Tab(text: context.strings.mgrTabMenu),
-              Tab(text: context.strings.mgrTabTableManagement),
-              Tab(text: context.strings.mgrTabReports),
-              Tab(text: context.strings.mgrTabShifts),
-              const Tab(text: 'Nhân viên'),
             ],
+            bottom: TabBar(
+              labelColor: AppTheme.primaryOrange,
+              indicatorColor: AppTheme.primaryOrange,
+              isScrollable: true,
+              tabs: [
+                Tab(text: context.strings.mgrTabDashboard),
+                Tab(text: context.strings.mgrTabMenu),
+                Tab(text: context.strings.mgrTabTableManagement),
+                Tab(text: context.strings.mgrTabReports),
+                Tab(text: context.strings.mgrTabShifts),
+                const Tab(text: 'Nhân viên'),
+              ],
+            ),
           ),
-        ),
-        body: TabBarView(
-          children: [
+          body: TabBarView(
+            children: [
             // 1. Dashboard Tab
             Consumer<RestaurantProvider>(
               builder: (context, provider, _) {
@@ -484,7 +487,8 @@ class ManagerDashboardScreen extends StatelessWidget {
 
             // 6. Employee Management Tab
             const EmployeeManagementScreen(),
-          ],
+            ],
+          ),
         ),
       ),
     );

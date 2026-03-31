@@ -11,6 +11,7 @@ import 'widgets/tka_logo.dart';
 import 'screens/waiter/waiter_dashboard_screen.dart';
 import 'screens/kitchen/kitchen_display_screen.dart';
 import 'screens/manager/manager_dashboard_screen.dart';
+import 'screens/cashier/cashier_dashboard_screen.dart';
 import 'screens/auth/login_screen.dart';
 import 'models/enums.dart';
 
@@ -63,18 +64,54 @@ class _MainNavigationScaffoldState extends State<MainNavigationScaffold>
   late PageController _pageController;
 
   late final List<Widget> _pages;
+  late final List<NavigationDestination> _destinations;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _pages = widget.role == UserRole.staff
-        ? const [WaiterDashboardScreen()]
-        : const [
-            WaiterDashboardScreen(),
-            KitchenDisplayScreen(),
-            ManagerDashboardScreen(),
-          ];
+    switch (widget.role) {
+      case UserRole.manager:
+        _pages = const [
+          WaiterDashboardScreen(),
+          CashierDashboardScreen(),
+          KitchenDisplayScreen(),
+          ManagerDashboardScreen(),
+        ];
+        _destinations = [
+          const NavigationDestination(
+            icon: Icon(Icons.room_service),
+            label: 'Phục vụ',
+          ),
+          const NavigationDestination(
+            icon: Icon(Icons.point_of_sale),
+            label: 'Thu ngân',
+          ),
+          const NavigationDestination(icon: Icon(Icons.kitchen), label: 'Bếp'),
+          const NavigationDestination(
+            icon: Icon(Icons.admin_panel_settings),
+            label: 'Quản lý',
+          ),
+        ];
+      case UserRole.cashier:
+        _pages = const [
+          CashierDashboardScreen(),
+          KitchenDisplayScreen(),
+        ];
+        _destinations = const [
+          NavigationDestination(
+            icon: Icon(Icons.point_of_sale),
+            label: 'Thu ngân',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.kitchen),
+            label: 'Bếp',
+          ),
+        ];
+      case UserRole.waiter:
+        _pages = const [WaiterDashboardScreen()];
+        _destinations = const [];
+    }
     _pageController = PageController(initialPage: _selectedIndex);
   }
 
@@ -110,19 +147,16 @@ class _MainNavigationScaffoldState extends State<MainNavigationScaffold>
 
   @override
   Widget build(BuildContext context) {
-    final strings = context.strings;
     final auth = Provider.of<AuthProvider>(context, listen: false);
 
-    // Nếu là nhân viên, chỉ hiển thị màn hình phục vụ (không có bottom navigation)
-    if (widget.role == UserRole.staff) {
+    // Cashier và Waiter chỉ hiển thị đúng dashboard vai trò của họ.
+    if (widget.role == UserRole.waiter) {
       return Scaffold(
         appBar: AppBar(
-          title: const TkaLogo(fontSize: 20),
+          title: Text('Waiter - ${auth.username ?? ''}'),
           actions: [
             TextButton.icon(
-              onPressed: () {
-                auth.logout();
-              },
+              onPressed: auth.logout,
               icon: const Icon(Icons.logout, size: 18),
               label: Text(context.strings.logout),
             ),
@@ -132,7 +166,37 @@ class _MainNavigationScaffoldState extends State<MainNavigationScaffold>
       );
     }
 
-    // Nếu là quản lý, hiển thị đầy đủ với bottom navigation
+    if (widget.role == UserRole.cashier) {
+      return Scaffold(
+        appBar: AppBar(
+          title: Text('Cashier - ${auth.username ?? ''}'),
+          actions: [
+            TextButton.icon(
+              onPressed: auth.logout,
+              icon: const Icon(Icons.logout, size: 18),
+              label: Text(context.strings.logout),
+            ),
+          ],
+        ),
+        body: PageView(
+          controller: _pageController,
+          onPageChanged: (index) {
+            setState(() {
+              _selectedIndex = index;
+            });
+          },
+          children: _pages,
+        ),
+        bottomNavigationBar: NavigationBar(
+          selectedIndex: _selectedIndex,
+          onDestinationSelected: _onDestinationSelected,
+          animationDuration: const Duration(milliseconds: 300),
+          destinations: _destinations,
+        ),
+      );
+    }
+
+    // Manager có thể truy cập đầy đủ module.
     return Scaffold(
       appBar: AppBar(
         title: const TkaLogo(fontSize: 20),
@@ -159,20 +223,7 @@ class _MainNavigationScaffoldState extends State<MainNavigationScaffold>
         selectedIndex: _selectedIndex,
         onDestinationSelected: _onDestinationSelected,
         animationDuration: const Duration(milliseconds: 300),
-        destinations: [
-          NavigationDestination(
-            icon: const Icon(Icons.restaurant_menu),
-            label: strings.navWaiter,
-          ),
-          NavigationDestination(
-            icon: const Icon(Icons.kitchen),
-            label: strings.navKitchen,
-          ),
-          NavigationDestination(
-            icon: const Icon(Icons.admin_panel_settings),
-            label: strings.navManager,
-          ),
-        ],
+        destinations: _destinations,
       ),
     );
   }

@@ -33,7 +33,7 @@ class _AddEmployeeDialogState extends State<AddEmployeeDialog> {
       text: widget.employeeToEdit?.username ?? '',
     );
     _passwordController = TextEditingController(text: '');
-    _selectedRole = widget.employeeToEdit?.role ?? UserRole.staff;
+    _selectedRole = widget.employeeToEdit?.role ?? UserRole.waiter;
   }
 
   @override
@@ -153,9 +153,7 @@ class _AddEmployeeDialogState extends State<AddEmployeeDialog> {
                 items: UserRole.values.map((role) {
                   return DropdownMenuItem<UserRole>(
                     value: role,
-                    child: Text(
-                      role == UserRole.manager ? 'Quản lý' : 'Nhân viên',
-                    ),
+                    child: Text(role.displayNameVi),
                   );
                 }).toList(),
                 onChanged: (value) {

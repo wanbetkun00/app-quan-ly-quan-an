@@ -9,6 +9,7 @@
 - Phân quyền 2 cấp: Staff (nhân viên) và Manager (quản lý)
 - Quản lý trạng thái đăng nhập với AuthProvider
 - Kiểm tra tài khoản active/inactive
+- Hash mật khẩu (SHA-256 + salt) và tự động migrate khi đăng nhập
 
 ### 1.2. Quản lý Đơn hàng (Order Management)
 ✅ **Đã hoàn thiện:**
@@ -32,7 +33,8 @@
 ✅ **Đã hoàn thiện:**
 - Thêm, sửa, xóa món ăn/thức uống
 - Phân loại: Food và Drink
-- Hỗ trợ hình ảnh (URL hoặc local file)
+- Hỗ trợ hình ảnh (URL hoặc chọn từ thư viện)
+- Upload ảnh lên Cloudinary khi chọn từ thư viện
 - Hiển thị menu trong Ordering Sheet với tìm kiếm
 - Real-time sync với Firestore
 
@@ -60,6 +62,7 @@
 - Lưu báo cáo vào Firestore
 - Chọn khoảng thời gian tùy chỉnh
 - Hiển thị top món bán chạy với doanh thu
+- Xuất báo cáo ra Excel
 
 ### 1.8. Thanh toán (Payment)
 ✅ **Đã hoàn thiện:**
@@ -85,9 +88,91 @@
 
 ---
 
-## 2. GIẢI THÍCH FILE (DATA DICTIONARY)
+## 2. CẤU TRÚC HỆ THỐNG LẬP TRÌNH
 
-### 2.1. Models (Cấu trúc dữ liệu)
+Dự án được xây dựng theo kiến trúc phân lớp (Layered Architecture) kết hợp với mô hình quản lý trạng thái Provider, một phương pháp phổ biến và hiệu quả trong hệ sinh thái Flutter.
+
+Kiến trúc này chia ứng dụng thành các lớp (layers) độc lập với các vai trò và trách nhiệm rõ ràng, giúp mã nguồn dễ đọc, dễ bảo trì và mở rộng.
+
+```mermaid
+graph TD
+    A[UI Layer (Screens & Widgets)] --> B[State Management Layer (Providers)];
+    B --> C[Service Layer (Business Logic & API Calls)];
+    C --> D[Data Layer (Models & Data Sources)];
+    D --> E[Firebase Firestore];
+
+    subgraph "Tầng Trình Bày (Presentation Layer)"
+        A
+    end
+
+    subgraph "Tầng Quản lý Trạng thái"
+        B
+    end
+
+    subgraph "Tầng Dữ liệu (Data Layer)"
+        C
+        D
+    end
+
+    subgraph "Nguồn Dữ liệu (Data Source)"
+        E
+    end
+```
+
+### 2.1. Tầng Trình Bày (Presentation Layer)
+
+-   **Thư mục:** `lib/screens/`, `lib/widgets/`
+-   **Vai trò:** Chịu trách nhiệm hiển thị giao diện người dùng (UI) và bắt các sự kiện từ người dùng (như nhấn nút, nhập liệu).
+-   **Mô tả:**
+    -   `screens/`: Chứa các màn hình hoàn chỉnh của ứng dụng (ví dụ: `login_screen.dart`, `waiter_dashboard_screen.dart`).
+    -   `widgets/`: Chứa các thành phần UI có thể tái sử dụng trên nhiều màn hình (ví dụ: `add_employee_dialog.dart`, `tka_logo.dart`).
+    -   Tầng này không chứa logic nghiệp vụ. Nó chỉ "lắng nghe" sự thay đổi trạng thái từ `Provider` và cập nhật lại giao diện. Khi có tương tác từ người dùng, nó sẽ gọi các phương thức tương ứng trong `Provider`.
+
+### 2.2. Tầng Quản lý Trạng thái (State Management Layer)
+
+-   **Thư mục:** `lib/providers/`
+-   **Vai trò:** Là cầu nối giữa Tầng Trình Bày và Tầng Dữ liệu. Nó chứa trạng thái của ứng dụng và logic nghiệp vụ (business logic).
+-   **Mô tả:**
+    -   Sử dụng `ChangeNotifierProvider` và `ChangeNotifier` để quản lý và thông báo các thay đổi về trạng thái cho UI.
+    -   Ví dụ: `AuthProvider` quản lý trạng thái đăng nhập, `RestaurantProvider` quản lý dữ liệu về bàn, menu, đơn hàng...
+    -   Khi cần dữ liệu, Provider sẽ gọi các phương thức từ `Service Layer`. Sau khi nhận được dữ liệu, nó sẽ cập nhật trạng thái của mình và thông báo cho UI (`notifyListeners()`).
+
+### 2.3. Tầng Dịch vụ (Service Layer)
+
+-   **Thư mục:** `lib/services/`
+-   **Vai trò:** Trừu tượng hóa việc truy cập dữ liệu từ các nguồn bên ngoài (như Firebase Firestore). Tầng này đóng vai trò là một "Repository".
+-   **Mô tả:**
+-   `firestore_service.dart`: Chứa tất cả các phương thức để thực hiện thao tác CRUD (Create, Read, Update, Delete) với Firestore.
+-   `cloudinary_service.dart`: Upload ảnh lên Cloudinary (unsigned).
+-   `excel_export_service.dart`: Xuất báo cáo Excel.
+-   `password_service.dart`: Hash/verify mật khẩu.
+-   `error_handler.dart` & `logger_service.dart`: Xử lý lỗi tập trung và logging.
+    -   Việc tách lớp Service giúp logic nghiệp vụ trong Provider không cần biết chi tiết về cách dữ liệu được lưu trữ hay truy xuất. Nếu sau này muốn đổi từ Firestore sang một database khác, chúng ta chỉ cần thay đổi lớp Service này mà không ảnh hưởng đến các lớp khác.
+
+### 2.4. Tầng Dữ liệu (Data Layer)
+
+-   **Thư mục:** `lib/models/`
+-   **Vai trò:** Định nghĩa cấu trúc dữ liệu của ứng dụng.
+-   **Mô tả:**
+    -   Chứa các lớp Plain Old Dart Object (PODO) như `EmployeeModel`, `OrderModel`, `TableModel`.
+    -   Các lớp này bao gồm các phương thức để chuyển đổi từ/sang định dạng của Firestore (`fromFirestore`, `toFirestore`), giúp việc serialize/deserialize dữ liệu trở nên dễ dàng.
+
+### 2.5. Luồng Dữ liệu (Data Flow)
+
+1.  **User Interaction:** Người dùng tương tác với một Widget trên màn hình (ví dụ: nhấn nút "Đăng nhập").
+2.  **Call Provider:** Widget gọi một phương thức trong `AuthProvider` (ví dụ: `authProvider.login(user, pass)`).
+3.  **Call Service:** `AuthProvider` gọi phương thức tương ứng trong `FirestoreService` (ví dụ: `firestoreService.getEmployeeByUsername(user)`).
+4.  **Fetch Data:** `FirestoreService` tương tác với Firebase Firestore để lấy dữ liệu.
+5.  **Return Data:** Dữ liệu được trả về qua các lớp, được chuyển đổi thành các đối tượng `Model`.
+6.  **Update State:** `AuthProvider` nhận dữ liệu, cập nhật trạng thái bên trong nó (ví dụ: `_role`, `_currentEmployee`).
+7.  **Notify UI:** `AuthProvider` gọi `notifyListeners()`.
+8.  **Rebuild UI:** Các Widget đang "lắng nghe" `AuthProvider` sẽ tự động được xây dựng lại (rebuild) để hiển thị trạng thái mới.
+
+---
+
+## 3. GIẢI THÍCH FILE (DATA DICTIONARY)
+
+### 3.1. Models (Cấu trúc dữ liệu)
 
 - **`enums.dart`**: Định nghĩa các enum: TableStatus, OrderStatus, MenuCategory, UserRole, ShiftStatus, AppLanguage, PaymentMethod
 - **`table_model.dart`**: Định nghĩa cấu trúc dữ liệu của một bàn ăn (id, name, status, currentOrderId)
@@ -99,18 +184,23 @@
 - **`report_model.dart`**: Định nghĩa cấu trúc báo cáo (type, startDate, endDate, totalRevenue, totalOrders, itemSales, itemRevenue)
 - **`models.dart`**: File export tập trung tất cả models
 
-### 2.2. Providers (Quản lý State)
+### 3.2. Providers (Quản lý State)
 
 - **`restaurant_provider.dart`**: Provider chính quản lý toàn bộ state của nhà hàng (tables, menu, orders, employees, shifts), xử lý business logic và tương tác với Firestore
 - **`auth_provider.dart`**: Quản lý xác thực người dùng, đăng nhập/đăng xuất, lưu thông tin user hiện tại
 - **`language_provider.dart`**: Quản lý ngôn ngữ ứng dụng (tiếng Việt/tiếng Anh)
 - **`app_strings.dart`**: Quản lý tất cả các chuỗi văn bản đa ngôn ngữ
 
-### 2.3. Services (Dịch vụ)
+### 3.3. Services (Dịch vụ)
 
 - **`firestore_service.dart`**: Service xử lý tất cả các thao tác với Firestore (CRUD cho menu, tables, orders, employees, shifts, reports, payments)
+- **`cloudinary_service.dart`**: Upload ảnh lên Cloudinary (unsigned)
+- **`excel_export_service.dart`**: Xuất báo cáo Excel
+- **`password_service.dart`**: Hash/verify mật khẩu
+- **`error_handler.dart`**: Xử lý lỗi tập trung, trả thông điệp thân thiện
+- **`logger_service.dart`**: Logging cho lỗi/cảnh báo
 
-### 2.4. Screens (Màn hình)
+### 3.4. Screens (Màn hình)
 
 #### Auth
 - **`login_screen.dart`**: Màn hình đăng nhập với form validation
@@ -128,7 +218,7 @@
 - **`reports_screen.dart`**: Màn hình xem và tạo báo cáo theo tuần/tháng/năm
 - **`shift_management_screen.dart`**: Màn hình quản lý ca làm việc, lọc theo tuần và nhân viên
 
-### 2.5. Widgets (Component UI)
+### 3.5. Widgets (Component UI)
 
 - **`add_employee_dialog.dart`**: Dialog thêm/sửa nhân viên
 - **`add_menu_item_dialog.dart`**: Dialog thêm/sửa món ăn
@@ -139,22 +229,24 @@
 - **`animated_card.dart`**: Widget card có animation
 - **`tka_logo.dart`**: Widget logo của ứng dụng
 
-### 2.6. Utils & Theme
+### 3.6. Utils & Theme
 
 - **`vnd_format.dart`**: Utility format số tiền theo định dạng VNĐ
 - **`page_transitions.dart`**: Utility cho page transitions
 - **`app_theme.dart`**: Định nghĩa theme, màu sắc của ứng dụng
+- **`input_sanitizer.dart`**: Làm sạch input (tên, username, notes, search, URL)
+- **`dummy_data.dart`**: Dữ liệu mẫu (seed/demo data)
 
 ---
 
-## 3. PHÂN TÍCH PHẦN CHƯA HOÀN THIỆN (GAP ANALYSIS)
+## 4. PHÂN TÍCH PHẦN CHƯA HOÀN THIỆN (GAP ANALYSIS)
 
-### 3.1. Màn hình chỉ có UI, chưa có Logic đầy đủ
+### 4.1. Màn hình chỉ có UI, chưa có Logic đầy đủ
 
 #### ❌ **Không có màn hình nào chỉ có UI mà thiếu logic**
 Tất cả các màn hình đều đã có logic xử lý đầy đủ và kết nối với Firestore.
 
-### 3.2. Chức năng quan trọng còn thiếu hoặc chưa hoàn thiện
+### 4.2. Chức năng quan trọng còn thiếu hoặc chưa hoàn thiện
 
 #### 🔴 **1. Quản lý Kho (Inventory Management)**
 - **Thiếu hoàn toàn**: Không có module quản lý nguyên liệu, tồn kho
@@ -290,12 +382,12 @@ Tất cả các màn hình đều đã có logic xử lý đầy đủ và kết
   - Xem feedback của khách
   - Phân tích điểm đánh giá
 
-### 3.3. Code đang viết dở dang hoặc cần cải thiện
+### 4.3. Code đang viết dở dang hoặc cần cải thiện
 
 #### ⚠️ **1. Error Handling**
-- **Hiện tại**: Có try-catch cơ bản, nhưng chưa có error handling tập trung
+- **Hiện tại**: Đã có ErrorHandler + LoggerService để xử lý lỗi tập trung
 - **Cần cải thiện**: 
-  - Error logging service
+  - Error logging service ngoài debug (Sentry/Crashlytics)
   - User-friendly error messages
   - Retry mechanisms
 
@@ -315,9 +407,9 @@ Tất cả các màn hình đều đã có logic xử lý đầy đủ và kết
   - Memoization
 
 #### ⚠️ **4. Security**
-- **Hiện tại**: Password lưu plain text trong Firestore
+- **Hiện tại**: Password đã được hash (SHA-256 + salt) và migrate khi đăng nhập
 - **Cần cải thiện**:
-  - Hash password (bcrypt)
+  - Hash password mạnh hơn (bcrypt/argon2)
   - Firebase Authentication thay vì custom auth
   - Role-based access control (RBAC) chặt chẽ hơn
   - Input validation và sanitization
@@ -336,16 +428,15 @@ Tất cả các màn hình đều đã có logic xử lý đầy đủ và kết
   - Architecture documentation
   - User manual
 
-#### ⚠️ **7. Image Upload**
-- **Hiện tại**: Hỗ trợ URL và local file path, nhưng chưa có upload lên Firebase Storage
+#### ✅ **7. Image Upload**
+- **Đã bổ sung**: Upload ảnh lên Cloudinary (chọn từ thư viện) và hỗ trợ URL
 - **Cần cải thiện**:
-  - Upload ảnh lên Firebase Storage
-  - Image compression
-  - Image picker từ gallery/camera
+  - Thêm upload lên Firebase Storage (nếu muốn đồng bộ Firebase hoàn toàn)
+  - Image picker từ camera (hiện mới chọn từ gallery)
 
 ---
 
-## 4. TỔNG KẾT
+## 5. TỔNG KẾT
 
 ### Điểm mạnh:
 ✅ Core features hoàn thiện và hoạt động tốt
@@ -370,4 +461,3 @@ Tất cả các màn hình đều đã có logic xử lý đầy đủ và kết
 ---
 
 *Báo cáo được tạo vào: ${DateTime.now().toString()}*
-

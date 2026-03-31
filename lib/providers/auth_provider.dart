@@ -99,14 +99,15 @@ class AuthProvider extends ChangeNotifier {
 
   // Đăng nhập với tài khoản demo (fallback)
   bool _loginDemoAccount(String username, String password) {
-    // Tài khoản demo: staff/1234, manager/1234
-    if (username == 'staff' && password == '1234') {
-      _role = UserRole.staff;
+    // Tài khoản demo:
+    // manager/1234, cashier/1234, waiter/1234, staff/1234 (legacy)
+    if (username == 'waiter' && password == '1234') {
+      _role = UserRole.waiter;
       _username = username;
-      _employeeId = 'staff';
+      _employeeId = 'waiter';
       _currentEmployee = null; // Không có trong Firestore
       notifyListeners();
-      debugPrint('Login successful with demo account: staff');
+      debugPrint('Login successful with demo account: waiter');
       return true;
     }
 
@@ -117,6 +118,27 @@ class AuthProvider extends ChangeNotifier {
       _currentEmployee = null; // Không có trong Firestore
       notifyListeners();
       debugPrint('Login successful with demo account: manager');
+      return true;
+    }
+
+    if (username == 'cashier' && password == '1234') {
+      _role = UserRole.cashier;
+      _username = username;
+      _employeeId = 'cashier';
+      _currentEmployee = null; // Không có trong Firestore
+      notifyListeners();
+      debugPrint('Login successful with demo account: cashier');
+      return true;
+    }
+
+    // Backward compatibility for old demo account
+    if (username == 'staff' && password == '1234') {
+      _role = UserRole.waiter;
+      _username = username;
+      _employeeId = 'staff';
+      _currentEmployee = null;
+      notifyListeners();
+      debugPrint('Login successful with legacy demo account: staff -> waiter');
       return true;
     }
 

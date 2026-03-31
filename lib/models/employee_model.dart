@@ -41,15 +41,21 @@ class EmployeeModel {
     // Field 'id' trong data chỉ là metadata, không phải document ID thực tế
     final employeeId = docId;
 
+    final roleName = (data['role'] as String? ?? '').trim().toLowerCase();
+    final mappedRole = switch (roleName) {
+      'manager' => UserRole.manager,
+      'cashier' => UserRole.cashier,
+      'waiter' => UserRole.waiter,
+      'staff' => UserRole.waiter, // Backward compatibility
+      _ => UserRole.waiter,
+    };
+
     return EmployeeModel(
       id: employeeId,
       username: data['username'] as String? ?? '',
       name: data['name'] as String? ?? '',
       password: data['password'] as String? ?? '',
-      role: UserRole.values.firstWhere(
-        (e) => e.name == data['role'],
-        orElse: () => UserRole.staff,
-      ),
+      role: mappedRole,
       isActive: data['isActive'] as bool? ?? true,
       createdAt: data['createdAt'] != null
           ? (data['createdAt'] is String
