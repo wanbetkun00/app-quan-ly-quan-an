@@ -45,9 +45,9 @@ class EmployeeModel {
     final mappedRole = switch (roleName) {
       'manager' => UserRole.manager,
       'cashier' => UserRole.cashier,
-      'waiter' => UserRole.waiter,
-      'staff' => UserRole.waiter, // Backward compatibility
-      _ => UserRole.waiter,
+      'waiter' => UserRole.staff, // Backward compatibility
+      'staff' => UserRole.staff, // Backward compatibility
+      _ => UserRole.staff,
     };
 
     return EmployeeModel(

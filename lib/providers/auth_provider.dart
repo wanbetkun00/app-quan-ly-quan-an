@@ -102,12 +102,12 @@ class AuthProvider extends ChangeNotifier {
     // Tài khoản demo:
     // manager/1234, cashier/1234, waiter/1234, staff/1234 (legacy)
     if (username == 'waiter' && password == '1234') {
-      _role = UserRole.waiter;
+      _role = UserRole.staff;
       _username = username;
       _employeeId = 'waiter';
       _currentEmployee = null; // Không có trong Firestore
       notifyListeners();
-      debugPrint('Login successful with demo account: waiter');
+      debugPrint('Login successful with legacy demo account: waiter -> staff');
       return true;
     }
 
@@ -133,12 +133,12 @@ class AuthProvider extends ChangeNotifier {
 
     // Backward compatibility for old demo account
     if (username == 'staff' && password == '1234') {
-      _role = UserRole.waiter;
+      _role = UserRole.staff;
       _username = username;
       _employeeId = 'staff';
       _currentEmployee = null;
       notifyListeners();
-      debugPrint('Login successful with legacy demo account: staff -> waiter');
+      debugPrint('Login successful with demo account: staff');
       return true;
     }
 

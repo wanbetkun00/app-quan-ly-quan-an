@@ -902,9 +902,19 @@ class FirestoreService {
 
   // Add employee
   Future<String> addEmployee(EmployeeModel employee) async {
-    final docRef = await _firestore
-        .collection(employeesCollection)
-        .add(employee.toFirestore());
+    final username = employee.username.trim();
+    if (username.isEmpty) {
+      throw Exception('Username is empty. Cannot add employee.');
+    }
+
+    final docRef = _firestore.collection(employeesCollection).doc(username);
+    final existing = await docRef.get();
+    if (existing.exists) {
+      throw Exception('Username already exists');
+    }
+
+    // Use docId = username to enforce unique username
+    await docRef.set(employee.copyWith(id: username).toFirestore());
     return docRef.id;
   }
 
@@ -933,18 +943,29 @@ class FirestoreService {
   // Get employee by username
   Future<EmployeeModel?> getEmployeeByUsername(String username) async {
     try {
+      final normalized = username.trim();
+      if (normalized.isEmpty) return null;
+
+      // Preferred path: docId = username
+      final directDoc = await _firestore
+          .collection(employeesCollection)
+          .doc(normalized)
+          .get();
+      if (directDoc.exists) {
+        return EmployeeModel.fromFirestore(directDoc.id, directDoc.data()!);
+      }
+
+      // Backward compatibility: legacy employees stored with auto-id
       final snapshot = await _firestore
           .collection(employeesCollection)
-          .where('username', isEqualTo: username)
+          .where('username', isEqualTo: normalized)
           .limit(1)
           .get();
-      if (snapshot.docs.isNotEmpty) {
-        return EmployeeModel.fromFirestore(
-          snapshot.docs.first.id,
-          snapshot.docs.first.data(),
-        );
-      }
-      return null;
+      if (snapshot.docs.isEmpty) return null;
+      return EmployeeModel.fromFirestore(
+        snapshot.docs.first.id,
+        snapshot.docs.first.data(),
+      );
     } catch (e) {
       return null;
     }

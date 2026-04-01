@@ -5,6 +5,7 @@ import '../../models/enums.dart';
 import '../../providers/restaurant_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/add_employee_dialog.dart';
+import '../../widgets/role_guard.dart';
 
 class EmployeeManagementScreen extends StatelessWidget {
   const EmployeeManagementScreen({super.key});
@@ -13,68 +14,75 @@ class EmployeeManagementScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final provider = Provider.of<RestaurantProvider>(context);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Quản lý tài khoản nhân viên'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add),
-            onPressed: () => _showAddEmployeeDialog(context, provider),
-            tooltip: 'Thêm nhân viên mới',
-          ),
-        ],
-      ),
-      body: StreamBuilder<List<EmployeeModel>>(
-        stream: provider.getEmployeesStream(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+    return RoleGuard(
+      allowedRoles: const [UserRole.manager],
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Quản lý tài khoản nhân viên'),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.add),
+              onPressed: () => _showAddEmployeeDialog(context, provider),
+              tooltip: 'Thêm nhân viên mới',
+            ),
+          ],
+        ),
+        body: StreamBuilder<List<EmployeeModel>>(
+          stream: provider.getEmployeesStream(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
 
-          if (snapshot.hasError) {
-            return Center(
-              child: Text('Lỗi khi tải danh sách nhân viên: ${snapshot.error}'),
-            );
-          }
+            if (snapshot.hasError) {
+              return Center(
+                child: Text('Lỗi khi tải danh sách nhân viên: ${snapshot.error}'),
+              );
+            }
 
-          final employees = snapshot.data ?? [];
+            final employees = snapshot.data ?? [];
 
-          if (employees.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.people_outline, size: 64, color: Colors.grey[400]),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Chưa có nhân viên nào',
-                    style: TextStyle(color: Colors.grey[600]),
-                  ),
-                  const SizedBox(height: 8),
-                  ElevatedButton.icon(
-                    onPressed: () => _showAddEmployeeDialog(context, provider),
-                    icon: const Icon(Icons.add),
-                    label: const Text('Thêm nhân viên đầu tiên'),
-                  ),
-                ],
+            if (employees.isEmpty) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.people_outline,
+                      size: 64,
+                      color: Colors.grey[400],
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Chưa có nhân viên nào',
+                      style: TextStyle(color: Colors.grey[600]),
+                    ),
+                    const SizedBox(height: 8),
+                    ElevatedButton.icon(
+                      onPressed: () => _showAddEmployeeDialog(context, provider),
+                      icon: const Icon(Icons.add),
+                      label: const Text('Thêm nhân viên đầu tiên'),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            return RefreshIndicator(
+              onRefresh: () async {
+                await provider.getEmployees();
+              },
+              child: ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: employees.length,
+                itemBuilder: (context, index) {
+                  final employee = employees[index];
+                  return _buildEmployeeCard(context, employee, provider);
+                },
               ),
             );
-          }
-
-          return RefreshIndicator(
-            onRefresh: () async {
-              await provider.getEmployees();
-            },
-            child: ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: employees.length,
-              itemBuilder: (context, index) {
-                final employee = employees[index];
-                return _buildEmployeeCard(context, employee, provider);
-              },
-            ),
-          );
-        },
+          },
+        ),
       ),
     );
   }
@@ -87,7 +95,7 @@ class EmployeeManagementScreen extends StatelessWidget {
     final roleColor = switch (employee.role) {
       UserRole.manager => AppTheme.primaryOrange,
       UserRole.cashier => Colors.indigo,
-      UserRole.waiter => AppTheme.darkGreyText,
+      UserRole.staff => AppTheme.darkGreyText,
     };
     final roleText = employee.role.displayNameVi;
 
@@ -106,7 +114,7 @@ class EmployeeManagementScreen extends StatelessWidget {
             switch (employee.role) {
               UserRole.manager => Icons.admin_panel_settings,
               UserRole.cashier => Icons.point_of_sale,
-              UserRole.waiter => Icons.room_service,
+              UserRole.staff => Icons.room_service,
             },
             color: roleColor,
           ),

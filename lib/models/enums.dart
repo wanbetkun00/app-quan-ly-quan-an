@@ -6,17 +6,17 @@ enum MenuCategory { food, drink }
 
 enum AppLanguage { en, vi }
 
-enum UserRole { manager, cashier, waiter }
+enum UserRole { staff, cashier, manager }
 
 extension UserRoleX on UserRole {
   String get displayNameVi {
     switch (this) {
-      case UserRole.manager:
-        return 'Quản lý';
+      case UserRole.staff:
+        return 'Nhân viên';
       case UserRole.cashier:
         return 'Thu ngân';
-      case UserRole.waiter:
-        return 'Phục vụ';
+      case UserRole.manager:
+        return 'Quản lý';
     }
   }
 }

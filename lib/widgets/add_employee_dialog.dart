@@ -33,7 +33,7 @@ class _AddEmployeeDialogState extends State<AddEmployeeDialog> {
       text: widget.employeeToEdit?.username ?? '',
     );
     _passwordController = TextEditingController(text: '');
-    _selectedRole = widget.employeeToEdit?.role ?? UserRole.waiter;
+    _selectedRole = widget.employeeToEdit?.role ?? UserRole.staff;
   }
 
   @override

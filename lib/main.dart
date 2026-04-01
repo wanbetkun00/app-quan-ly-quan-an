@@ -108,7 +108,7 @@ class _MainNavigationScaffoldState extends State<MainNavigationScaffold>
             label: 'Bếp',
           ),
         ];
-      case UserRole.waiter:
+      case UserRole.staff:
         _pages = const [WaiterDashboardScreen()];
         _destinations = const [];
     }
@@ -150,10 +150,10 @@ class _MainNavigationScaffoldState extends State<MainNavigationScaffold>
     final auth = Provider.of<AuthProvider>(context, listen: false);
 
     // Cashier và Waiter chỉ hiển thị đúng dashboard vai trò của họ.
-    if (widget.role == UserRole.waiter) {
+    if (widget.role == UserRole.staff) {
       return Scaffold(
         appBar: AppBar(
-          title: Text('Waiter - ${auth.username ?? ''}'),
+          title: Text('Staff - ${auth.username ?? ''}'),
           actions: [
             TextButton.icon(
               onPressed: auth.logout,
