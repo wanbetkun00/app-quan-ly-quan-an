@@ -281,6 +281,78 @@ class FirestoreService {
     return null;
   }
 
+  Future<OrderModel?> getActiveOrderForTable(
+    int tableId,
+    List<MenuItem> menu,
+  ) async {
+    try {
+      final snapshot = await _firestore
+          .collection(ordersCollection)
+          .where('tableId', isEqualTo: tableId)
+          .where('isPaid', isEqualTo: false)
+          .orderBy('timestamp', descending: true)
+          .limit(1)
+          .get();
+      if (snapshot.docs.isEmpty) return null;
+      final data = snapshot.docs.first.data();
+      final status = data['status'] as String?;
+      final activeStatuses = {'pending', 'cooking', 'readyToServe', 'completed'};
+      if (status != null && !activeStatuses.contains(status)) return null;
+      return _orderFromFirestore(snapshot.docs.first.id, data, menu);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  Future<void> deleteOrderByOrderId(int orderId) async {
+    final orderDocId = await findOrderDocumentId(orderId);
+    if (orderDocId == null) return;
+    await _firestore.collection(ordersCollection).doc(orderDocId).delete();
+  }
+
+  Future<void> moveOrderToTable({
+    required int fromTableId,
+    required int toTableId,
+    required int orderId,
+  }) async {
+    final fromRef = _firestore.collection(tablesCollection).doc(fromTableId.toString());
+    final toRef = _firestore.collection(tablesCollection).doc(toTableId.toString());
+    final orderDocId = await findOrderDocumentId(orderId);
+    if (orderDocId == null) {
+      throw Exception('Không tìm thấy đơn hàng để dời bàn');
+    }
+    final orderRef = _firestore.collection(ordersCollection).doc(orderDocId);
+
+    await _firestore.runTransaction((tx) async {
+      final fromSnap = await tx.get(fromRef);
+      final toSnap = await tx.get(toRef);
+      final orderSnap = await tx.get(orderRef);
+
+      if (!fromSnap.exists || !toSnap.exists || !orderSnap.exists) {
+        throw Exception('Không tìm thấy dữ liệu bàn hoặc đơn hàng');
+      }
+
+      final fromData = fromSnap.data()!;
+      final toData = toSnap.data()!;
+      final fromStatus = fromData['status'] as String?;
+      final toStatus = toData['status'] as String?;
+      final fromCurrentOrderId = fromData['currentOrderId'] as int?;
+
+      if ((fromStatus != 'occupied' && fromStatus != 'paymentPending') ||
+          fromCurrentOrderId == null ||
+          fromCurrentOrderId != orderId) {
+        throw Exception('Bàn nguồn không hợp lệ để dời');
+      }
+      if (toStatus != 'available') {
+        throw Exception('Bàn đích không còn trống');
+      }
+
+      tx.update(orderRef, {'tableId': toTableId});
+      tx.update(fromRef, {'status': 'available', 'currentOrderId': null});
+      tx.update(toRef, {'status': 'occupied', 'currentOrderId': orderId});
+    });
+  }
+
   // Get completed orders for a table - requires menu
   // Only returns orders that are completed but not yet paid
   Future<List<OrderModel>> getCompletedOrdersForTable(

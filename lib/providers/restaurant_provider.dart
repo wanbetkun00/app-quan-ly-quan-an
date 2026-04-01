@@ -361,9 +361,72 @@ class RestaurantProvider extends ChangeNotifier {
     List<OrderItem> items, {
     String? employeeId,
   }) async {
+    return addItemsToExistingOrder(tableId, items, employeeId: employeeId);
+  }
+
+  Future<bool> addItemsToExistingOrder(
+    int tableId,
+    List<OrderItem> items, {
+    String? employeeId,
+  }) async {
     if (items.isEmpty) return false;
 
     try {
+      final tableIndex = tables.indexWhere((t) => t.id == tableId);
+      if (tableIndex == -1) {
+        _errorMessage = 'Không tìm thấy bàn';
+        notifyListeners();
+        return false;
+      }
+
+      final table = tables[tableIndex];
+      OrderModel? existingOrder;
+      if (table.currentOrderId != null) {
+        try {
+          existingOrder = activeOrders.firstWhere((o) => o.id == table.currentOrderId);
+        } catch (_) {
+          existingOrder = await _firestoreService.getActiveOrderForTable(tableId, menu);
+        }
+      } else {
+        existingOrder = await _firestoreService.getActiveOrderForTable(tableId, menu);
+      }
+
+      if (existingOrder != null && existingOrder.status != OrderStatus.completed) {
+        final mergedItems = existingOrder.items
+            .map((item) => OrderItem(menuItem: item.menuItem, quantity: item.quantity))
+            .toList();
+        for (final newItem in items) {
+          final idx = mergedItems.indexWhere((i) => i.menuItem.id == newItem.menuItem.id);
+          if (idx != -1) {
+            mergedItems[idx].quantity += newItem.quantity;
+          } else {
+            mergedItems.add(
+              OrderItem(menuItem: newItem.menuItem, quantity: newItem.quantity),
+            );
+          }
+        }
+
+        final updatedOrder = OrderModel(
+          id: existingOrder.id,
+          tableId: existingOrder.tableId,
+          timestamp: existingOrder.timestamp,
+          items: mergedItems,
+          status: existingOrder.status,
+          employeeId: existingOrder.employeeId ?? employeeId,
+        );
+
+        final orderDocId = await _firestoreService.findOrderDocumentId(existingOrder.id);
+        if (orderDocId == null) {
+          _errorMessage = 'Không tìm thấy đơn hàng để cập nhật';
+          notifyListeners();
+          return false;
+        }
+        await _firestoreService.updateOrder(orderDocId, updatedOrder);
+        await _refreshOrders();
+        await _refreshTables();
+        return true;
+      }
+
       // Generate order ID from timestamp
       final orderId = DateTime.now().millisecondsSinceEpoch;
 
@@ -381,12 +444,9 @@ class RestaurantProvider extends ChangeNotifier {
       await _firestoreService.addOrder(newOrder);
 
       // Update table status appropriately
-      final tableIndex = tables.indexWhere((t) => t.id == tableId);
-      if (tableIndex != -1) {
-        tables[tableIndex].status = TableStatus.occupied;
-        tables[tableIndex].currentOrderId = newOrder.id;
-        await _firestoreService.updateTable(tables[tableIndex]);
-      }
+      tables[tableIndex].status = TableStatus.occupied;
+      tables[tableIndex].currentOrderId = newOrder.id;
+      await _firestoreService.updateTable(tables[tableIndex]);
 
       // Add order to local list immediately for instant UI update
       activeOrders.insert(0, newOrder);
@@ -403,6 +463,128 @@ class RestaurantProvider extends ChangeNotifier {
         stackTrace,
         context: 'Lỗi khi tạo đơn hàng',
         fallbackMessage: 'Lỗi khi tạo đơn hàng',
+        onMessage: (message) {
+          _errorMessage = message;
+          notifyListeners();
+        },
+      );
+      return false;
+    }
+  }
+
+  Future<bool> moveTableOrder(int fromTableId, int toTableId) async {
+    try {
+      final fromTableIndex = tables.indexWhere((t) => t.id == fromTableId);
+      final toTableIndex = tables.indexWhere((t) => t.id == toTableId);
+      final fromTable = fromTableIndex == -1 ? null : tables[fromTableIndex];
+      final toTable = toTableIndex == -1 ? null : tables[toTableIndex];
+      if (fromTable == null || toTable == null) {
+        _errorMessage = 'Không tìm thấy bàn để dời';
+        notifyListeners();
+        return false;
+      }
+      if (toTable.status != TableStatus.available) {
+        _errorMessage = 'Bàn đích không còn trống';
+        notifyListeners();
+        return false;
+      }
+      final orderId = fromTable.currentOrderId;
+      if (orderId == null) {
+        _errorMessage = 'Bàn nguồn không có đơn hàng để dời';
+        notifyListeners();
+        return false;
+      }
+      await _firestoreService.moveOrderToTable(
+        fromTableId: fromTableId,
+        toTableId: toTableId,
+        orderId: orderId,
+      );
+      await _refreshOrders();
+      await _refreshTables();
+      return true;
+    } catch (e, stackTrace) {
+      _errorHandler.handleError(
+        e,
+        stackTrace,
+        context: 'Lỗi khi dời bàn',
+        fallbackMessage: 'Lỗi khi dời bàn',
+        onMessage: (message) {
+          _errorMessage = message;
+          notifyListeners();
+        },
+      );
+      return false;
+    }
+  }
+
+  Future<bool> removeItemFromOrder(
+    int orderId,
+    int menuItemId, {
+    int quantity = 1,
+  }) async {
+    try {
+      final orderIndex = activeOrders.indexWhere((o) => o.id == orderId);
+      if (orderIndex == -1) {
+        _errorMessage = 'Không tìm thấy đơn hàng';
+        notifyListeners();
+        return false;
+      }
+      final order = activeOrders[orderIndex];
+      if (order.status != OrderStatus.pending) {
+        _errorMessage = 'Chỉ được hủy món khi đơn hàng đang chờ xử lý';
+        notifyListeners();
+        return false;
+      }
+      final itemIndex = order.items.indexWhere((i) => i.menuItem.id == menuItemId);
+      if (itemIndex == -1) {
+        _errorMessage = 'Không tìm thấy món cần hủy';
+        notifyListeners();
+        return false;
+      }
+
+      final updatedItems = order.items
+          .map((item) => OrderItem(menuItem: item.menuItem, quantity: item.quantity))
+          .toList();
+      updatedItems[itemIndex].quantity -= quantity;
+      if (updatedItems[itemIndex].quantity <= 0) {
+        updatedItems.removeAt(itemIndex);
+      }
+
+      if (updatedItems.isEmpty) {
+        await _firestoreService.deleteOrderByOrderId(orderId);
+        final tableIndex = tables.indexWhere((t) => t.currentOrderId == orderId);
+        if (tableIndex != -1) {
+          tables[tableIndex].status = TableStatus.available;
+          tables[tableIndex].currentOrderId = null;
+          await _firestoreService.updateTable(tables[tableIndex]);
+        }
+      } else {
+        final orderDocId = await _firestoreService.findOrderDocumentId(orderId);
+        if (orderDocId == null) {
+          _errorMessage = 'Không tìm thấy đơn hàng để cập nhật';
+          notifyListeners();
+          return false;
+        }
+        final updatedOrder = OrderModel(
+          id: order.id,
+          tableId: order.tableId,
+          timestamp: order.timestamp,
+          items: updatedItems,
+          status: order.status,
+          employeeId: order.employeeId,
+        );
+        await _firestoreService.updateOrder(orderDocId, updatedOrder);
+      }
+
+      await _refreshOrders();
+      await _refreshTables();
+      return true;
+    } catch (e, stackTrace) {
+      _errorHandler.handleError(
+        e,
+        stackTrace,
+        context: 'Lỗi khi hủy món',
+        fallbackMessage: 'Lỗi khi hủy món',
         onMessage: (message) {
           _errorMessage = message;
           notifyListeners();

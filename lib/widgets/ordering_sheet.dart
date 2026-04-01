@@ -537,6 +537,11 @@ class _OrderingSheetState extends State<OrderingSheet>
                 ? null
                 : () async {
                     final authProvider = Provider.of<AuthProvider>(context, listen: false);
+                    final table = provider.tables.firstWhere(
+                      (t) => t.id == widget.tableId,
+                      orElse: () => TableModel(id: widget.tableId, name: 'Table ${widget.tableId}'),
+                    );
+                    final hadOpenOrder = table.currentOrderId != null;
                     final success = await provider.placeOrder(
                       widget.tableId,
                       draftItems,
@@ -548,7 +553,9 @@ class _OrderingSheetState extends State<OrderingSheet>
                         SnackBar(
                           content: Text(
                             success
-                                ? context.strings.orderSentSnack
+                                ? (hadOpenOrder
+                                      ? 'Đã thêm món vào đơn hiện tại'
+                                      : context.strings.orderSentSnack)
                                 : 'Lỗi khi gửi đơn hàng. Vui lòng thử lại.',
                           ),
                           backgroundColor: success

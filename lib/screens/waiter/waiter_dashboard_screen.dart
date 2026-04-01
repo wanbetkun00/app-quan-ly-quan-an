@@ -517,15 +517,58 @@ class _WaiterDashboardScreenState extends State<WaiterDashboardScreen> {
                                 mainAxisAlignment:
                                     MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Text(
-                                    '${item.quantity}x ${item.menuItem.name}',
-                                  ),
-                                  Text(
-                                    (item.menuItem.price * item.quantity)
-                                        .toVnd(),
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
+                                  Expanded(
+                                    child: Text(
+                                      '${item.quantity}x ${item.menuItem.name}',
                                     ),
+                                  ),
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        (item.menuItem.price * item.quantity).toVnd(),
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      IconButton(
+                                        icon: const Icon(
+                                          Icons.remove_circle_outline,
+                                          color: Colors.red,
+                                          size: 20,
+                                        ),
+                                        tooltip: order.status == OrderStatus.pending
+                                            ? 'Hủy món'
+                                            : 'Chỉ được hủy món khi đơn chờ xử lý',
+                                        onPressed: order.status == OrderStatus.pending
+                                            ? () async {
+                                                final success = await provider.removeItemFromOrder(
+                                                  order.id,
+                                                  item.menuItem.id,
+                                                  quantity: 1,
+                                                );
+                                                if (!context.mounted) return;
+                                                if (success) {
+                                                  Navigator.pop(ctx);
+                                                }
+                                                ScaffoldMessenger.of(context).showSnackBar(
+                                                  SnackBar(
+                                                    content: Text(
+                                                      success
+                                                          ? 'Đã hủy món ${item.menuItem.name}'
+                                                          : (provider.errorMessage ??
+                                                              'Không thể hủy món'),
+                                                    ),
+                                                    backgroundColor: success
+                                                        ? AppTheme.statusGreen
+                                                        : AppTheme.statusRed,
+                                                  ),
+                                                );
+                                              }
+                                            : null,
+                                      ),
+                                    ],
                                   ),
                                 ],
                               ),
@@ -580,6 +623,36 @@ class _WaiterDashboardScreenState extends State<WaiterDashboardScreen> {
                     ),
                   ],
                   const SizedBox(height: 16),
+                  if (order != null && table.status == TableStatus.occupied) ...[
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          _showOrderingSheet(context, table);
+                        },
+                        icon: const Icon(Icons.add),
+                        label: const Text('Gọi thêm món'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.primaryOrange,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          _showMoveTableDialog(context, table, provider);
+                        },
+                        icon: const Icon(Icons.swap_horiz),
+                        label: const Text('Dời bàn'),
+                      ),
+                    ),
+                  ],
                   if (table.status == TableStatus.occupied && order == null)
                     SizedBox(
                       width: double.infinity,
@@ -617,5 +690,62 @@ class _WaiterDashboardScreenState extends State<WaiterDashboardScreen> {
       case OrderStatus.completed:
         return Colors.grey;
     }
+  }
+
+  void _showMoveTableDialog(
+    BuildContext context,
+    TableModel fromTable,
+    RestaurantProvider provider,
+  ) {
+    final availableTables = provider.tables
+        .where((t) => t.status == TableStatus.available && t.id != fromTable.id)
+        .toList()
+      ..sort((a, b) => a.id.compareTo(b.id));
+
+    if (availableTables.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Không có bàn trống để dời'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('Dời ${fromTable.name} sang bàn khác'),
+        content: SizedBox(
+          width: 360,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: availableTables.length,
+            itemBuilder: (context, index) {
+              final target = availableTables[index];
+              return ListTile(
+                title: Text(target.name),
+                trailing: const Icon(Icons.arrow_forward),
+                onTap: () async {
+                  Navigator.pop(dialogContext);
+                  final success = await provider.moveTableOrder(fromTable.id, target.id);
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        success
+                            ? 'Đã dời ${fromTable.name} sang ${target.name}'
+                            : (provider.errorMessage ?? 'Lỗi khi dời bàn'),
+                      ),
+                      backgroundColor: success ? AppTheme.statusGreen : AppTheme.statusRed,
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ),
+    );
   }
 }
