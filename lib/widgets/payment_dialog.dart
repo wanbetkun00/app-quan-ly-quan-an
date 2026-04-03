@@ -7,6 +7,7 @@ import '../theme/app_theme.dart';
 import '../utils/vnd_format.dart';
 import 'package:intl/intl.dart';
 import '../services/error_handler.dart';
+import '../utils/vietqr.dart';
 
 class PaymentDialog extends StatefulWidget {
   final TableModel table;
@@ -27,13 +28,18 @@ class _PaymentDialogState extends State<PaymentDialog> {
   double _receivedAmount = 0.0;
   final TextEditingController _discountController = TextEditingController();
   final TextEditingController _receivedController = TextEditingController();
+  final TextEditingController _transferTxnController = TextEditingController();
+  final TextEditingController _transferNoteController = TextEditingController();
   PaymentMethod _selectedPaymentMethod = PaymentMethod.cash;
+  bool _transferVerified = false;
   final ErrorHandler _errorHandler = ErrorHandler();
 
   @override
   void dispose() {
     _discountController.dispose();
     _receivedController.dispose();
+    _transferTxnController.dispose();
+    _transferNoteController.dispose();
     super.dispose();
   }
 
@@ -122,6 +128,10 @@ class _PaymentDialogState extends State<PaymentDialog> {
                     // Received Amount (for cash)
                     if (_selectedPaymentMethod == PaymentMethod.cash)
                       _buildReceivedAmountSection(),
+
+                    // Transfer info (for bank transfer)
+                    if (_selectedPaymentMethod == PaymentMethod.transfer)
+                      _buildTransferInfoSection(),
 
                     const SizedBox(height: 20),
                     const Divider(),
@@ -389,14 +399,6 @@ class _PaymentDialogState extends State<PaymentDialog> {
             const SizedBox(width: 12),
             Expanded(
               child: _buildPaymentMethodOption(
-                PaymentMethod.card,
-                'Thẻ',
-                Icons.credit_card,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildPaymentMethodOption(
                 PaymentMethod.transfer,
                 'Chuyển khoản',
                 Icons.account_balance,
@@ -591,6 +593,15 @@ class _PaymentDialogState extends State<PaymentDialog> {
         _total,
         _discount,
         _selectedPaymentMethod,
+        transferTransactionId: _selectedPaymentMethod == PaymentMethod.transfer
+            ? _transferTxnController.text
+            : null,
+        transferNote: _selectedPaymentMethod == PaymentMethod.transfer
+            ? _transferNoteController.text
+            : null,
+        verificationStatus: _selectedPaymentMethod == PaymentMethod.transfer
+            ? (_transferVerified ? 'verified' : 'pending')
+            : 'verified',
       );
 
       if (context.mounted) {
@@ -642,7 +653,185 @@ class _PaymentDialogState extends State<PaymentDialog> {
       }
     }
   }
+
+  Widget _buildTransferInfoSection() {
+    // Tổng món (trước giảm giá) — "tất cả các món đã gọi".
+    final dishesTotal = _subtotal;
+    // Số khách phải chuyển (sau giảm giá), khớp mã QR.
+    final amount = _total.round();
+    final addInfo =
+        'Thanh toán, số tiền: ${dishesTotal.toVnd()}';
+    final qrUrl = VietQr.buildImageUrl(
+      bankId: RestaurantProvider.vietQrBankId,
+      accountNo: RestaurantProvider.vietQrAccountNo,
+      accountName: RestaurantProvider.vietQrAccountName,
+      amount: amount,
+      addInfo: addInfo,
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Thông tin chuyển khoản',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.blue.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.blue.withValues(alpha: 0.2)),
+          ),
+          child: const Text(
+            'Khách quét mã VietQR để chuyển khoản đúng số tiền.\n'
+            'Sau đó thu ngân nhập mã giao dịch để đối soát.',
+            style: TextStyle(fontSize: 13),
+          ),
+        ),
+        if (_discount > 0) ...[
+          const SizedBox(height: 8),
+          Text(
+            'Nội dung chuyển khoản ghi tổng món; số tiền trên QR là sau giảm giá (${_total.toVnd()}).',
+            style: TextStyle(fontSize: 12, color: Colors.grey[800]),
+          ),
+        ],
+        const SizedBox(height: 12),
+        Center(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              color: Colors.white,
+              padding: const EdgeInsets.all(8),
+              child: Image.network(
+                qrUrl,
+                height: 220,
+                width: 220,
+                fit: BoxFit.contain,
+                errorBuilder: (context, _, __) {
+                  return Container(
+                    height: 220,
+                    width: 220,
+                    alignment: Alignment.center,
+                    color: Colors.grey[100],
+                    child: const Text('Không tải được QR'),
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        _buildTransferDetailRow(
+          label: 'Ngân hàng',
+          value: RestaurantProvider.vietQrBankId,
+          onCopy: () => Clipboard.setData(
+            const ClipboardData(text: RestaurantProvider.vietQrBankId),
+          ),
+        ),
+        _buildTransferDetailRow(
+          label: 'Số tài khoản',
+          value: RestaurantProvider.vietQrAccountNo,
+          onCopy: () => Clipboard.setData(
+            const ClipboardData(text: RestaurantProvider.vietQrAccountNo),
+          ),
+        ),
+        _buildTransferDetailRow(
+          label: 'Tên nhận',
+          value: RestaurantProvider.vietQrAccountName,
+          onCopy: () => Clipboard.setData(
+            const ClipboardData(text: RestaurantProvider.vietQrAccountName),
+          ),
+        ),
+        _buildTransferDetailRow(
+          label: 'Số tiền',
+          value: amount.toDouble().toVnd(),
+          onCopy: () => Clipboard.setData(
+            ClipboardData(text: amount.toString()),
+          ),
+        ),
+        _buildTransferDetailRow(
+          label: 'Nội dung CK',
+          value: addInfo,
+          onCopy: () => Clipboard.setData(ClipboardData(text: addInfo)),
+        ),
+        const SizedBox(height: 12),
+        SwitchListTile.adaptive(
+          contentPadding: EdgeInsets.zero,
+          title: const Text(
+            'Đã đối soát',
+            style: TextStyle(fontWeight: FontWeight.w600),
+          ),
+          subtitle: const Text(
+            'Bật khi đã xác nhận tiền vào tài khoản.',
+          ),
+          value: _transferVerified,
+          onChanged: (v) => setState(() => _transferVerified = v),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: _transferTxnController,
+          decoration: InputDecoration(
+            labelText: 'Mã giao dịch (tuỳ chọn)',
+            hintText: 'VD: FT2403xxxx / MBVCBxxxx...',
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _transferNoteController,
+          decoration: InputDecoration(
+            labelText: 'Ghi chú (tuỳ chọn)',
+            hintText: 'VD: tên người chuyển / nội dung chuyển khoản...',
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          maxLines: 2,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTransferDetailRow({
+    required String label,
+    required String value,
+    required VoidCallback onCopy,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 96,
+            child: Text(
+              label,
+              style: TextStyle(color: Colors.grey[700], fontSize: 13),
+            ),
+          ),
+          Expanded(
+            child: SelectableText(
+              value,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
+          IconButton(
+            tooltip: 'Sao chép',
+            onPressed: onCopy,
+            icon: const Icon(Icons.copy, size: 18),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
-enum PaymentMethod { cash, card, transfer }
+enum PaymentMethod { cash, transfer }
 

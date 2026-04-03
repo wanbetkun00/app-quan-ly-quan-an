@@ -165,7 +165,7 @@ class _ShiftViewScreenState extends State<ShiftViewScreen> {
                         ),
                         const Spacer(),
                         Text(
-                          '${_formatDateRange(weekDays.first, weekDays.last)}',
+                          _formatDateRange(weekDays.first, weekDays.last),
                           style: TextStyle(
                             fontSize: 14,
                             color: Colors.grey[600],
@@ -242,7 +242,7 @@ class _ShiftViewScreenState extends State<ShiftViewScreen> {
         return isInRange;
       }).toList();
 
-      debugPrint('Week: ${weekStartNormalized} to ${weekEndNormalized}');
+      debugPrint('Week: $weekStartNormalized to $weekEndNormalized');
       debugPrint('Total shifts from DB: ${allShifts.length}');
       debugPrint('Filtered shifts: ${filteredShifts.length}');
 

@@ -1,8 +1,5 @@
 import 'package:flutter/material.dart';
 import '../models/models.dart';
-import '../models/report_model.dart';
-import '../models/shift_model.dart';
-import '../models/employee_model.dart';
 import '../theme/app_theme.dart';
 import '../services/error_handler.dart';
 import '../services/firestore_service.dart';
@@ -12,6 +9,10 @@ import 'dart:async';
 class RestaurantProvider extends ChangeNotifier {
   final FirestoreService _firestoreService = FirestoreService();
   final ErrorHandler _errorHandler = ErrorHandler();
+
+  static const String vietQrBankId = 'MB';
+  static const String vietQrAccountNo = '0815857832';
+  static const String vietQrAccountName = 'Mượn tài khoản của Phương';
 
   List<TableModel> tables = [];
   List<MenuItem> menu = [];
@@ -696,6 +697,9 @@ class RestaurantProvider extends ChangeNotifier {
     double totalAmount,
     double discountPercent,
     PaymentMethod paymentMethod,
+    {String? transferTransactionId,
+    String? transferNote,
+    String verificationStatus = 'verified',}
   ) async {
     try {
       final tableIndex = tables.indexWhere((t) => t.id == tableId);
@@ -723,6 +727,9 @@ class RestaurantProvider extends ChangeNotifier {
         discountPercent: discountPercent,
         paymentMethod: paymentMethod.name,
         orderIds: orderIds,
+        verificationStatus: verificationStatus,
+        transferTransactionId: transferTransactionId,
+        transferNote: transferNote,
       );
 
       // Mark orders as paid

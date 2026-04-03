@@ -144,7 +144,7 @@ class _AddEmployeeDialogState extends State<AddEmployeeDialog> {
 
               // Role selector
               DropdownButtonFormField<UserRole>(
-                value: _selectedRole,
+                initialValue: _selectedRole,
                 decoration: const InputDecoration(
                   labelText: 'Vai trò',
                   prefixIcon: Icon(Icons.work),

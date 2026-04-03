@@ -1,9 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../models/models.dart';
-import '../models/report_model.dart';
-import '../models/shift_model.dart';
-import '../models/employee_model.dart';
 
 class FirestoreService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -487,6 +484,9 @@ class FirestoreService {
     required double discountPercent,
     required String paymentMethod,
     required List<int> orderIds,
+    required String verificationStatus,
+    String? transferTransactionId,
+    String? transferNote,
   }) async {
     try {
       await _firestore.collection(paymentsCollection).add({
@@ -494,7 +494,12 @@ class FirestoreService {
         'totalAmount': totalAmount,
         'discountPercent': discountPercent,
         'paymentMethod': paymentMethod,
+        'verificationStatus': verificationStatus,
         'orderIds': orderIds,
+        if (transferTransactionId != null && transferTransactionId.trim().isNotEmpty)
+          'transferTransactionId': transferTransactionId.trim(),
+        if (transferNote != null && transferNote.trim().isNotEmpty)
+          'transferNote': transferNote.trim(),
         'timestamp': FieldValue.serverTimestamp(),
       });
     } catch (e) {

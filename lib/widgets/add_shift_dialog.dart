@@ -81,7 +81,7 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                           });
                         }
                         return DropdownButtonFormField<String>(
-                          value: null,
+                          initialValue: null,
                           decoration: const InputDecoration(
                             labelText: 'Đang tải nhân viên...',
                             border: OutlineInputBorder(),
@@ -103,7 +103,7 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                           });
                         }
                         return DropdownButtonFormField<String>(
-                          value: null,
+                          initialValue: null,
                           decoration: const InputDecoration(
                             labelText: 'Lỗi khi tải nhân viên',
                             border: OutlineInputBorder(),
@@ -135,7 +135,7 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                           });
                         }
                         return DropdownButtonFormField<String>(
-                          value: null,
+                          initialValue: null,
                           decoration: const InputDecoration(
                             labelText: 'Chưa có nhân viên',
                             border: OutlineInputBorder(),
@@ -178,7 +178,7 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                       }
 
                       return DropdownButtonFormField<String>(
-                        value: validEmployeeId,
+                        initialValue: validEmployeeId,
                         decoration: InputDecoration(
                           labelText: context.strings.employeeLabel,
                           border: const OutlineInputBorder(),
@@ -293,7 +293,7 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                 builder: (context) {
                   final strings = context.strings;
                   return DropdownButtonFormField<ShiftStatus>(
-                    value: _status,
+                    initialValue: _status,
                     decoration: InputDecoration(
                       labelText: strings.tableStatusLabel,
                       border: const OutlineInputBorder(),
