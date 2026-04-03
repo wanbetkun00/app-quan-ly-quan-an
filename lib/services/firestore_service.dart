@@ -625,6 +625,58 @@ class FirestoreService {
     }
   }
 
+  // Get paid completed orders within date range
+  Future<List<OrderModel>> getPaidCompletedOrdersInRange(
+    DateTime startDate,
+    DateTime endDate,
+    List<MenuItem> menu,
+  ) async {
+    try {
+      final startTimestamp = Timestamp.fromDate(startDate);
+      final endTimestamp = Timestamp.fromDate(endDate);
+
+      final snapshot = await _firestore
+          .collection(ordersCollection)
+          .where('status', isEqualTo: 'completed')
+          .where('isPaid', isEqualTo: true)
+          .where('timestamp', isGreaterThanOrEqualTo: startTimestamp)
+          .where('timestamp', isLessThanOrEqualTo: endTimestamp)
+          .get();
+
+      final orders = snapshot.docs
+          .map((doc) => _orderFromFirestore(doc.id, doc.data(), menu))
+          .toList();
+
+      orders.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+      return orders;
+    } catch (e) {
+      // Fallback: get all completed paid orders and filter manually
+      try {
+        final snapshot = await _firestore
+            .collection(ordersCollection)
+            .where('status', isEqualTo: 'completed')
+            .where('isPaid', isEqualTo: true)
+            .get();
+
+        final allOrders = snapshot.docs
+            .map((doc) => _orderFromFirestore(doc.id, doc.data(), menu))
+            .toList();
+
+        final filteredOrders = allOrders.where((order) {
+          return order.timestamp.isAfter(
+                startDate.subtract(const Duration(days: 1)),
+              ) &&
+              order.timestamp.isBefore(endDate.add(const Duration(days: 1)));
+        }).toList();
+
+        filteredOrders.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+        return filteredOrders;
+      } catch (e2) {
+        return [];
+      }
+    }
+  }
+
   // Save report to Firestore
   Future<String> saveReport(ReportModel report) async {
     final docRef = await _firestore

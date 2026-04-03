@@ -545,3 +545,4 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
     return endMinutes > startMinutes;
   }
 }
+  

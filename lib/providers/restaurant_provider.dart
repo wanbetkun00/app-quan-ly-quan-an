@@ -16,6 +16,9 @@ class RestaurantProvider extends ChangeNotifier {
   List<TableModel> tables = [];
   List<MenuItem> menu = [];
   List<OrderModel> activeOrders = [];
+  // Used by manager dashboard "best selling items".
+  // These orders are only counted after cashier marks them as paid.
+  List<OrderModel> paidCompletedOrdersLast7Days = [];
   List<EmployeeModel> _employees = [];
 
   bool _isLoading = true;
@@ -43,6 +46,7 @@ class RestaurantProvider extends ChangeNotifier {
       menu = await _firestoreService.getMenu();
       tables = await _firestoreService.getTables();
       activeOrders = await _firestoreService.getActiveOrders(menu);
+      await _refreshPaidCompletedOrdersForLast7Days();
       _ordersLoaded = true;
       _employees = await _firestoreService.getEmployees();
       debugPrint('Initial employees loaded: ${_employees.length} employees');
@@ -724,6 +728,9 @@ class RestaurantProvider extends ChangeNotifier {
       // Mark orders as paid
       await _firestoreService.markOrdersAsPaid(orderIds);
 
+      // Refresh best-selling widget source data so it updates only after payment.
+      await _refreshPaidCompletedOrdersForLast7Days();
+
       // Note: We keep orders in Firestore with isPaid=true for history/reporting
       // The filtering logic will automatically exclude paid orders from activeOrders
 
@@ -820,6 +827,35 @@ class RestaurantProvider extends ChangeNotifier {
   int get drinkItems =>
       menu.where((m) => m.category == MenuCategory.drink).length;
 
+  Future<void> _refreshPaidCompletedOrdersForLast7Days() async {
+    try {
+      if (menu.isEmpty) {
+        paidCompletedOrdersLast7Days = [];
+        return;
+      }
+
+      final now = DateTime.now();
+      // "1 tuần qua": rolling 7 days (tính từ đầu ngày cách hôm nay 6 ngày).
+      final startDate = DateTime(now.year, now.month, now.day)
+          .subtract(const Duration(days: 6));
+      final endDate = DateTime(now.year, now.month, now.day, 23, 59, 59);
+
+      paidCompletedOrdersLast7Days =
+          await _firestoreService.getPaidCompletedOrdersInRange(
+        startDate,
+        endDate,
+        menu,
+      );
+    } catch (e, stackTrace) {
+      _errorHandler.logError(
+        e,
+        stackTrace,
+        context: 'Error refreshing paid completed orders for last 7 days',
+      );
+      paidCompletedOrdersLast7Days = [];
+    }
+  }
+
   // Get best selling items from completed orders
   List<MapEntry<MenuItem, int>> get bestSellingItems {
     final Map<int, int> itemCounts = {};
@@ -831,9 +867,7 @@ class RestaurantProvider extends ChangeNotifier {
     }
 
     // Count items from completed orders
-    for (var order in activeOrders.where(
-      (o) => o.status == OrderStatus.completed,
-    )) {
+    for (var order in paidCompletedOrdersLast7Days) {
       for (var orderItem in order.items) {
         final itemId = orderItem.menuItem.id;
         itemCounts[itemId] = (itemCounts[itemId] ?? 0) + orderItem.quantity;
@@ -1116,7 +1150,7 @@ class RestaurantProvider extends ChangeNotifier {
     }
 
     // Get completed orders in range
-    final orders = await _firestoreService.getCompletedOrdersInRange(
+    final orders = await _firestoreService.getPaidCompletedOrdersInRange(
       startDate,
       endDate,
       menu,
