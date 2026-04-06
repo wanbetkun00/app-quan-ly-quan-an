@@ -8,42 +8,73 @@ import '../models/menu_item.dart';
 import '../models/enums.dart';
 import '../utils/vnd_format.dart';
 
+class ExcelExportResult {
+  final String filePath;
+  final bool openSucceeded;
+  final String? openMessage;
+
+  const ExcelExportResult({
+    required this.filePath,
+    required this.openSucceeded,
+    this.openMessage,
+  });
+}
+
+class ExcelExportException implements Exception {
+  final String message;
+
+  const ExcelExportException(this.message);
+
+  @override
+  String toString() => message;
+}
+
 class ExcelExportService {
   /// Exports a report to Excel file
   ///
   /// [report] - The report model to export
   /// [menuItems] - List of menu items to resolve item names from IDs
   ///
-  /// Returns the file path if successful, null otherwise
-  Future<String?> exportReportToExcel({
+  /// Returns detailed export result including open-file status
+  Future<ExcelExportResult> exportReportToExcel({
     required ReportModel report,
     required List<MenuItem> menuItems,
   }) async {
-    try {
-      // Note: We use app-specific directory (getApplicationDocumentsDirectory)
-      // which doesn't require storage permission on Android 13+ (API 33+)
-      // and works without permission on older versions too.
-      // No permission check needed - just proceed with file creation.
+    // Note: We use app-specific directory (getApplicationDocumentsDirectory)
+    // which doesn't require storage permission on Android 13+ (API 33+)
+    // and works without permission on older versions too.
+    // No permission check needed - just proceed with file creation.
+    // Create Excel workbook
+    final excel = Excel.createExcel();
+    excel.delete('Sheet1'); // Delete default sheet
 
-      // Create Excel workbook
-      final excel = Excel.createExcel();
-      excel.delete('Sheet1'); // Delete default sheet
+    // Create main sheet
+    final sheet = excel['Báo cáo doanh thu'];
 
-      // Create main sheet
-      final sheet = excel['Báo cáo doanh thu'];
+    // Build Excel content
+    _buildExcelContent(sheet, report, menuItems);
 
-      // Build Excel content
-      _buildExcelContent(sheet, report, menuItems);
+    // Save Excel file
+    final file = await _saveExcelFile(excel, report);
 
-      // Save Excel file
-      final file = await _saveExcelFile(excel, report);
+    // Open the file and return the status to UI
+    final openResult = await OpenFile.open(file.path);
+    return ExcelExportResult(
+      filePath: file.path,
+      openSucceeded: openResult.type == ResultType.done,
+      openMessage: openResult.message,
+    );
+  }
 
-      // Open the file
-      await OpenFile.open(file.path);
-
-      return file.path;
-    } catch (e) {
-      throw Exception('Error exporting Excel: $e');
+  String _buildBaseFilename(ReportModel report) {
+    switch (report.type) {
+      case ReportType.weekly:
+        final start = DateFormat('yyyy-MM-dd').format(report.startDate);
+        return 'BaoCao_Tuan_$start';
+      case ReportType.monthly:
+        return 'BaoCao_Thang_${report.startDate.month}_${report.startDate.year}';
+      case ReportType.yearly:
+        return 'BaoCao_Nam_${report.startDate.year}';
     }
   }
 
@@ -74,7 +105,7 @@ class ExcelExportService {
     // Title row
     sheet.merge(
       CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex),
-      CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: rowIndex),
+      CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: rowIndex),
     );
     final titleCell = sheet.cell(
       CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex),
@@ -96,7 +127,7 @@ class ExcelExportService {
         'Từ ngày: ${dateFormat.format(report.startDate)} - Đến ngày: ${dateFormat.format(report.endDate)}';
     sheet.merge(
       CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex),
-      CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: rowIndex),
+      CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: rowIndex),
     );
     rowIndex += 2;
 
@@ -260,31 +291,39 @@ class ExcelExportService {
       await reportsDir.create(recursive: true);
     }
 
-    // Generate filename based on report type and date
-    String filename;
-    final dateFormat = DateFormat('yyyy-MM-dd');
-    switch (report.type) {
-      case ReportType.weekly:
-        filename = 'BaoCao_Tuan_${dateFormat.format(report.startDate)}.xlsx';
-        break;
-      case ReportType.monthly:
-        filename =
-            'BaoCao_Thang_${report.startDate.month}_${report.startDate.year}.xlsx';
-        break;
-      case ReportType.yearly:
-        filename = 'BaoCao_Nam_${report.startDate.year}.xlsx';
-        break;
-    }
-
-    // Save Excel
-    final file = File('${reportsDir.path}/$filename');
+    // Generate unique filename to avoid overwriting previous exports
+    final baseFilename = _buildBaseFilename(report);
+    final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+    final preferredFilename = '${baseFilename}_$timestamp.xlsx';
+    final uniquePath = await _buildUniqueFilePath(reportsDir, preferredFilename);
+    final file = File(uniquePath);
     final excelBytes = excel.save();
     if (excelBytes == null) {
-      throw Exception('Failed to generate Excel file');
+      throw const ExcelExportException('Không thể tạo dữ liệu tệp Excel.');
     }
     await file.writeAsBytes(excelBytes);
 
     return file;
+  }
+
+  Future<String> _buildUniqueFilePath(
+    Directory directory,
+    String preferredFilename,
+  ) async {
+    final extIndex = preferredFilename.lastIndexOf('.');
+    final hasExtension = extIndex > 0;
+    final namePart = hasExtension
+        ? preferredFilename.substring(0, extIndex)
+        : preferredFilename;
+    final extPart = hasExtension ? preferredFilename.substring(extIndex) : '';
+
+    var candidate = '${directory.path}/$preferredFilename';
+    var suffix = 1;
+    while (await File(candidate).exists()) {
+      candidate = '${directory.path}/${namePart}_$suffix$extPart';
+      suffix++;
+    }
+    return candidate;
   }
 
   /// Helper method to get week number

@@ -1,30 +1,43 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
 
-import 'package:do_an_mon_quanlyquanan/main.dart';
+import 'package:do_an_mon_quanlyquanan/models/enums.dart';
+import 'package:do_an_mon_quanlyquanan/providers/auth_provider.dart';
+import 'package:do_an_mon_quanlyquanan/widgets/role_guard.dart';
+
+class FakeAuthProvider extends ChangeNotifier implements AuthProvider {
+  FakeAuthProvider(this._role);
+
+  final UserRole? _role;
+
+  @override
+  UserRole? get role => _role;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const TkaRestaurantApp());
+  testWidgets('RBAC smoke test for manager-only screen', (
+    WidgetTester tester,
+  ) async {
+    final auth = FakeAuthProvider(UserRole.staff);
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AuthProvider>.value(
+        value: auth,
+        child: const MaterialApp(
+          home: RoleGuard(
+            allowedRoles: [UserRole.manager],
+            child: Text('MANAGER_DASHBOARD'),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
-
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    expect(find.text('MANAGER_DASHBOARD'), findsNothing);
+    expect(find.text('Không đủ quyền'), findsOneWidget);
   });
 }

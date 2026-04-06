@@ -495,18 +495,28 @@ class _ReportTabViewState extends State<_ReportTabView> {
                     final provider =
                         Provider.of<RestaurantProvider>(context, listen: false);
                     final exportService = ExcelExportService();
-                    
-                    final filePath = await exportService.exportReportToExcel(
+
+                    final exportResult = await exportService.exportReportToExcel(
                       report: report,
                       menuItems: provider.menu,
                     );
 
                     if (mounted) {
                       setState(() => _isLoading = false);
+                      final openStatusText = exportResult.openSucceeded
+                          ? 'Tệp đã được mở.'
+                          : 'Tệp đã lưu nhưng không thể mở tự động'
+                                '${exportResult.openMessage != null && exportResult.openMessage!.isNotEmpty ? ': ${exportResult.openMessage}' : '.'}';
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text('Đã xuất báo cáo Excel thành công!\n$filePath'),
-                          backgroundColor: AppTheme.statusGreen,
+                          content: Text(
+                            'Đã xuất báo cáo Excel thành công!\n'
+                            '${exportResult.filePath}\n'
+                            '$openStatusText',
+                          ),
+                          backgroundColor: exportResult.openSucceeded
+                              ? AppTheme.statusGreen
+                              : AppTheme.primaryOrange,
                           duration: const Duration(seconds: 3),
                         ),
                       );
@@ -516,7 +526,7 @@ class _ReportTabViewState extends State<_ReportTabView> {
                       setState(() => _isLoading = false);
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text('Lỗi khi xuất Excel: $e'),
+                          content: Text('Lỗi khi xuất Excel: ${e.toString()}'),
                           backgroundColor: AppTheme.statusRed,
                         ),
                       );
