@@ -541,7 +541,8 @@ class _OrderingSheetState extends State<OrderingSheet>
                       (t) => t.id == widget.tableId,
                       orElse: () => TableModel(id: widget.tableId, name: 'Table ${widget.tableId}'),
                     );
-                    final hadOpenOrder = table.currentOrderId != null;
+                    final hadOpenOrder = table.currentOrderId != null ||
+                        table.status == TableStatus.paymentPending;
                     final success = await provider.placeOrder(
                       widget.tableId,
                       draftItems,
@@ -554,7 +555,7 @@ class _OrderingSheetState extends State<OrderingSheet>
                           content: Text(
                             success
                                 ? (hadOpenOrder
-                                      ? 'Đã thêm món vào đơn hiện tại'
+                                      ? 'Đã thêm món vào hóa đơn hiện tại'
                                       : context.strings.orderSentSnack)
                                 : 'Lỗi khi gửi đơn hàng. Vui lòng thử lại.',
                           ),

@@ -396,7 +396,7 @@ class RestaurantProvider extends ChangeNotifier {
         existingOrder = await _firestoreService.getActiveOrderForTable(tableId, menu);
       }
 
-      if (existingOrder != null && existingOrder.status != OrderStatus.completed) {
+      if (existingOrder != null) {
         final mergedItems = existingOrder.items
             .map((item) => OrderItem(menuItem: item.menuItem, quantity: item.quantity))
             .toList();
@@ -411,12 +411,16 @@ class RestaurantProvider extends ChangeNotifier {
           }
         }
 
+        final nextStatus = existingOrder.status == OrderStatus.completed
+            ? OrderStatus.pending
+            : existingOrder.status;
+
         final updatedOrder = OrderModel(
           id: existingOrder.id,
           tableId: existingOrder.tableId,
           timestamp: existingOrder.timestamp,
           items: mergedItems,
-          status: existingOrder.status,
+          status: nextStatus,
           employeeId: existingOrder.employeeId ?? employeeId,
         );
 
@@ -427,6 +431,9 @@ class RestaurantProvider extends ChangeNotifier {
           return false;
         }
         await _firestoreService.updateOrder(orderDocId, updatedOrder);
+        tables[tableIndex].status = TableStatus.occupied;
+        tables[tableIndex].currentOrderId = existingOrder.id;
+        await _firestoreService.updateTable(tables[tableIndex]);
         await _refreshOrders();
         await _refreshTables();
         return true;

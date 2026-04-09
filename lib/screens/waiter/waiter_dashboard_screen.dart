@@ -235,13 +235,9 @@ class _WaiterDashboardScreenState extends State<WaiterDashboardScreen> {
       elevation: 2,
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
-        onTap: isAvailable
+        onTap: isAvailable || table.status == TableStatus.paymentPending
             ? () {
                 _showOrderingSheet(context, table);
-              }
-            : table.status == TableStatus.paymentPending
-            ? () {
-                _showPaymentBlockedMessage(context);
               }
             : () {
                 _showTableDetails(context, table, currentOrder, provider);
@@ -371,16 +367,6 @@ class _WaiterDashboardScreenState extends State<WaiterDashboardScreen> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => OrderingSheet(tableId: table.id),
-    );
-  }
-
-  void _showPaymentBlockedMessage(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Vai trò phục vụ không được thanh toán. Vui lòng gọi thu ngân.'),
-        backgroundColor: Colors.orange,
-        duration: Duration(seconds: 2),
-      ),
     );
   }
 
@@ -623,7 +609,9 @@ class _WaiterDashboardScreenState extends State<WaiterDashboardScreen> {
                     ),
                   ],
                   const SizedBox(height: 16),
-                  if (order != null && table.status == TableStatus.occupied) ...[
+                  if (order != null &&
+                      (table.status == TableStatus.occupied ||
+                          table.status == TableStatus.paymentPending)) ...[
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton.icon(
@@ -653,7 +641,9 @@ class _WaiterDashboardScreenState extends State<WaiterDashboardScreen> {
                       ),
                     ),
                   ],
-                  if (table.status == TableStatus.occupied && order == null)
+                  if ((table.status == TableStatus.occupied ||
+                          table.status == TableStatus.paymentPending) &&
+                      order == null)
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton.icon(
