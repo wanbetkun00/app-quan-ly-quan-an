@@ -7,7 +7,6 @@ import '../../theme/app_theme.dart';
 import '../../models/menu_item.dart';
 import '../../models/enums.dart';
 import '../../utils/vnd_format.dart';
-import '../../services/excel_export_service.dart';
 
 class ReportsScreen extends StatefulWidget {
   const ReportsScreen({super.key});
@@ -483,63 +482,6 @@ class _ReportTabViewState extends State<_ReportTabView> {
                 }).toList();
               })(),
 
-            const SizedBox(height: 24),
-
-            // Export to Excel Button
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () async {
-                  setState(() => _isLoading = true);
-                  try {
-                    final provider =
-                        Provider.of<RestaurantProvider>(context, listen: false);
-                    final exportService = ExcelExportService();
-
-                    final exportResult = await exportService.exportReportToExcel(
-                      report: report,
-                      menuItems: provider.menu,
-                    );
-
-                    if (mounted) {
-                      setState(() => _isLoading = false);
-                      final openStatusText = exportResult.openSucceeded
-                          ? 'Tệp đã được mở.'
-                          : 'Tệp đã lưu nhưng không thể mở tự động'
-                                '${exportResult.openMessage != null && exportResult.openMessage!.isNotEmpty ? ': ${exportResult.openMessage}' : '.'}';
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            'Đã xuất báo cáo Excel thành công!\n'
-                            '${exportResult.filePath}\n'
-                            '$openStatusText',
-                          ),
-                          backgroundColor: exportResult.openSucceeded
-                              ? AppTheme.statusGreen
-                              : AppTheme.primaryOrange,
-                          duration: const Duration(seconds: 3),
-                        ),
-                      );
-                    }
-                  } catch (e) {
-                    if (mounted) {
-                      setState(() => _isLoading = false);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Lỗi khi xuất Excel: ${e.toString()}'),
-                          backgroundColor: AppTheme.statusRed,
-                        ),
-                      );
-                    }
-                  }
-                },
-                icon: const Icon(Icons.file_download),
-                label: Text(context.strings.saveReport),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                ),
-              ),
-            ),
           ],
         ),
       ),

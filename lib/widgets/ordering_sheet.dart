@@ -7,7 +7,7 @@ import '../providers/app_strings.dart';
 import '../theme/app_theme.dart';
 import '../utils/vnd_format.dart';
 import '../utils/input_sanitizer.dart';
-import 'dart:io';
+import 'menu_item_uri_image.dart';
 
 class OrderingSheet extends StatefulWidget {
   final int tableId;
@@ -46,7 +46,7 @@ class _OrderingSheetState extends State<OrderingSheet>
         draftItems.add(OrderItem(menuItem: item, quantity: 1));
       }
     });
-    
+
     // Show feedback
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -105,7 +105,7 @@ class _OrderingSheetState extends State<OrderingSheet>
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
-              
+
               // Header
               Padding(
                 padding: const EdgeInsets.all(16.0),
@@ -117,9 +117,8 @@ class _OrderingSheetState extends State<OrderingSheet>
                       children: [
                         Text(
                           context.strings.orderingForTable(widget.tableId),
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                fontWeight: FontWeight.bold,
-                              ),
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(fontWeight: FontWeight.bold),
                         ),
                         if (draftItems.isNotEmpty)
                           Text(
@@ -228,27 +227,23 @@ class _OrderingSheetState extends State<OrderingSheet>
     final filteredItems = _searchQuery.isEmpty
         ? items
         : items
-            .where((item) =>
-                item.name.toLowerCase().contains(_searchQuery.toLowerCase()))
-            .toList();
+              .where(
+                (item) => item.name.toLowerCase().contains(
+                  _searchQuery.toLowerCase(),
+                ),
+              )
+              .toList();
 
     if (filteredItems.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.search_off,
-              size: 64,
-              color: Colors.grey[400],
-            ),
+            Icon(Icons.search_off, size: 64, color: Colors.grey[400]),
             const SizedBox(height: 16),
             Text(
               'Không tìm thấy món nào',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey[600],
-              ),
+              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
             ),
           ],
         ),
@@ -271,7 +266,7 @@ class _OrderingSheetState extends State<OrderingSheet>
           (d) => d.menuItem.id == item.id,
           orElse: () => OrderItem(menuItem: item, quantity: 0),
         );
-        
+
         return _buildMenuItemCard(item, draftItem.quantity);
       },
     );
@@ -288,10 +283,7 @@ class _OrderingSheetState extends State<OrderingSheet>
         child: Container(
           decoration: BoxDecoration(
             border: quantity > 0
-                ? Border.all(
-                    color: AppTheme.primaryOrange,
-                    width: 2,
-                  )
+                ? Border.all(color: AppTheme.primaryOrange, width: 2)
                 : Border.all(color: Colors.grey.shade300),
             borderRadius: BorderRadius.circular(12),
           ),
@@ -306,35 +298,33 @@ class _OrderingSheetState extends State<OrderingSheet>
                     top: Radius.circular(12),
                   ),
                   child: item.imageUrl != null
-                      ? item.imageUrl!.startsWith('http')
-                          ? Image.network(
-                              item.imageUrl!,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) {
-                                return _buildPlaceholderImage();
-                              },
-                              loadingBuilder: (context, child, loadingProgress) {
-                                if (loadingProgress == null) return child;
-                                return Container(
-                                  color: Colors.grey[200],
-                                  child: Center(
-                                    child: CircularProgressIndicator(
-                                      value: loadingProgress.expectedTotalBytes != null
-                                          ? loadingProgress.cumulativeBytesLoaded /
-                                              loadingProgress.expectedTotalBytes!
-                                          : null,
+                      ? MenuItemUriImage(
+                          uri: item.imageUrl!,
+                          fit: BoxFit.cover,
+                          loadingBuilder: item.imageUrl!.startsWith('http')
+                              ? (context, child, loadingProgress) {
+                                  if (loadingProgress == null) return child;
+                                  return Container(
+                                    color: Colors.grey[200],
+                                    child: Center(
+                                      child: CircularProgressIndicator(
+                                        value:
+                                            loadingProgress.expectedTotalBytes !=
+                                                null
+                                            ? loadingProgress
+                                                      .cumulativeBytesLoaded /
+                                                  loadingProgress
+                                                      .expectedTotalBytes!
+                                            : null,
+                                      ),
                                     ),
-                                  ),
-                                );
-                              },
-                            )
-                          : Image.file(
-                              File(item.imageUrl!),
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) {
-                                return _buildPlaceholderImage();
-                              },
-                            )
+                                  );
+                                }
+                              : null,
+                          errorBuilder: (context, error, stackTrace) {
+                            return _buildPlaceholderImage();
+                          },
+                        )
                       : _buildPlaceholderImage(),
                 ),
               ),
@@ -403,11 +393,7 @@ class _OrderingSheetState extends State<OrderingSheet>
     return Container(
       color: Colors.grey[200],
       child: const Center(
-        child: Icon(
-          Icons.restaurant_menu,
-          size: 48,
-          color: Colors.grey,
-        ),
+        child: Icon(Icons.restaurant_menu, size: 48, color: Colors.grey),
       ),
     );
   }
@@ -445,10 +431,7 @@ class _OrderingSheetState extends State<OrderingSheet>
                       alignment: Alignment.centerRight,
                       padding: const EdgeInsets.only(right: 16),
                       color: Colors.red,
-                      child: const Icon(
-                        Icons.delete,
-                        color: Colors.white,
-                      ),
+                      child: const Icon(Icons.delete, color: Colors.white),
                     ),
                     onDismissed: (_) {
                       setState(() {
@@ -481,10 +464,7 @@ class _OrderingSheetState extends State<OrderingSheet>
                       ),
                       subtitle: Text(
                         '${item.menuItem.price.toVnd()} x ${item.quantity}',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: Colors.grey[600],
-                        ),
+                        style: TextStyle(fontSize: 11, color: Colors.grey[600]),
                       ),
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -498,7 +478,10 @@ class _OrderingSheetState extends State<OrderingSheet>
                           ),
                           const SizedBox(width: 8),
                           IconButton(
-                            icon: const Icon(Icons.remove_circle_outline, size: 20),
+                            icon: const Icon(
+                              Icons.remove_circle_outline,
+                              size: 20,
+                            ),
                             color: Colors.red,
                             onPressed: () => _removeFromDraft(index),
                           ),
@@ -536,12 +519,19 @@ class _OrderingSheetState extends State<OrderingSheet>
             onPressed: draftItems.isEmpty
                 ? null
                 : () async {
-                    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+                    final authProvider = Provider.of<AuthProvider>(
+                      context,
+                      listen: false,
+                    );
                     final table = provider.tables.firstWhere(
                       (t) => t.id == widget.tableId,
-                      orElse: () => TableModel(id: widget.tableId, name: 'Table ${widget.tableId}'),
+                      orElse: () => TableModel(
+                        id: widget.tableId,
+                        name: 'Table ${widget.tableId}',
+                      ),
                     );
-                    final hadOpenOrder = table.currentOrderId != null ||
+                    final hadOpenOrder =
+                        table.currentOrderId != null ||
                         table.status == TableStatus.paymentPending;
                     final success = await provider.placeOrder(
                       widget.tableId,

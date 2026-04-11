@@ -7,7 +7,7 @@ import '../../providers/app_strings.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/vnd_format.dart';
 import '../../widgets/animated_card.dart';
-import 'dart:io';
+import '../../widgets/menu_item_uri_image.dart';
 
 class KitchenDisplayScreen extends StatefulWidget {
   const KitchenDisplayScreen({super.key});
@@ -920,18 +920,15 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
                           if (item.menuItem.imageUrl != null)
                             ClipRRect(
                               borderRadius: BorderRadius.circular(8),
-                              child: item.menuItem.imageUrl!.startsWith('http')
-                                  ? Image.network(
-                                      item.menuItem.imageUrl!,
-                                      width: 60,
-                                      height: 60,
-                                      fit: BoxFit.cover,
-                                      errorBuilder:
-                                          (context, error, stackTrace) {
-                                            return const SizedBox.shrink();
-                                          },
-                                    )
-                                  : _buildLocalImage(item.menuItem.imageUrl!),
+                              child: MenuItemUriImage(
+                                uri: item.menuItem.imageUrl!,
+                                width: 60,
+                                height: 60,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return const SizedBox.shrink();
+                                },
+                              ),
                             ),
                         ],
                       ),
@@ -1040,23 +1037,4 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
     }
   }
 
-  Widget _buildLocalImage(String path) {
-    try {
-      final file = File(path);
-      if (file.existsSync()) {
-        return Image.file(
-          file,
-          width: 60,
-          height: 60,
-          fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) {
-            return const SizedBox.shrink();
-          },
-        );
-      }
-    } catch (e) {
-      // Ignore errors
-    }
-    return const SizedBox.shrink();
-  }
 }
