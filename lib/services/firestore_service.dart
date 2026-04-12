@@ -768,27 +768,37 @@ class FirestoreService {
     }
   }
 
-  // Get shifts for a specific employee
+  Future<ShiftModel?> getShiftById(String shiftId) async {
+    if (shiftId.isEmpty) return null;
+    try {
+      final doc =
+          await _firestore.collection(shiftsCollection).doc(shiftId).get();
+      if (!doc.exists || doc.data() == null) return null;
+      return ShiftModel.fromFirestore(doc.id, doc.data()!);
+    } catch (e) {
+      debugPrint('getShiftById: $e');
+      return null;
+    }
+  }
+
+  // Get shifts for a specific employee (gán tay hoặc đã đăng ký ca mở)
   Future<List<ShiftModel>> getShiftsForEmployee(String employeeId) async {
     try {
-      final snapshot = await _firestore
-          .collection(shiftsCollection)
-          .where('employeeId', isEqualTo: employeeId)
-          .orderBy('date', descending: false)
-          .get();
-      return snapshot.docs
-          .map((doc) => ShiftModel.fromFirestore(doc.id, doc.data()))
-          .toList();
+      final allShifts = await getShifts();
+      final list = allShifts.where((s) => s.involvesEmployee(employeeId)).toList();
+      list.sort((a, b) {
+        final da = DateTime(a.date.year, a.date.month, a.date.day);
+        final db = DateTime(b.date.year, b.date.month, b.date.day);
+        final c = da.compareTo(db);
+        if (c != 0) return c;
+        final am = a.startTime.hour * 60 + a.startTime.minute;
+        final bm = b.startTime.hour * 60 + b.startTime.minute;
+        return am.compareTo(bm);
+      });
+      return list;
     } catch (e) {
-      // Fallback: get all and filter
-      try {
-        final allShifts = await getShifts();
-        return allShifts
-            .where((shift) => shift.employeeId == employeeId)
-            .toList();
-      } catch (e2) {
-        return [];
-      }
+      debugPrint('Error getShiftsForEmployee: $e');
+      return [];
     }
   }
 
@@ -830,7 +840,12 @@ class FirestoreService {
   // Add shift
   Future<String> addShift(ShiftModel shift) async {
     try {
-      if (shift.employeeId.isEmpty) {
+      if (shift.openSlot) {
+        if (shift.maxEmployees < 1) {
+          throw Exception('Số người cần phải >= 1.');
+        }
+      } else if (shift.employeeId.isEmpty ||
+          shift.employeeId == ShiftModel.openSlotEmployeeId) {
         throw Exception('Employee ID is empty. Cannot add shift.');
       }
       final shiftData = shift.toFirestore();
@@ -854,7 +869,14 @@ class FirestoreService {
       if (shift.id.isEmpty) {
         throw Exception('Shift ID is empty. Cannot update shift.');
       }
-      if (shift.employeeId.isEmpty) {
+      if (shift.openSlot) {
+        if (shift.maxEmployees < shift.registeredCount) {
+          throw Exception(
+            'Số người tối đa không được nhỏ hơn số người đã đăng ký (${shift.registeredCount}).',
+          );
+        }
+      } else if (shift.employeeId.isEmpty ||
+          shift.employeeId == ShiftModel.openSlotEmployeeId) {
         throw Exception('Employee ID is empty. Cannot update shift.');
       }
       final shiftData = shift.toFirestore();
@@ -878,6 +900,7 @@ class FirestoreService {
   }
 
   // Check for overlapping shifts for an employee on a specific date
+  /// Gồm ca gán tay và ca mở mà nhân viên đã đăng ký (theo [ShiftModel.involvesEmployee]).
   Future<List<ShiftModel>> checkOverlappingShifts(
     String employeeId,
     DateTime date,
@@ -886,26 +909,14 @@ class FirestoreService {
     String? excludeShiftId,
   }) async {
     try {
-      // Get all shifts for this employee on this date
       final dateStart = DateTime(date.year, date.month, date.day);
       final dateEnd = DateTime(date.year, date.month, date.day, 23, 59, 59);
-
-      final snapshot = await _firestore
-          .collection(shiftsCollection)
-          .where('employeeId', isEqualTo: employeeId)
-          .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(dateStart))
-          .where('date', isLessThanOrEqualTo: Timestamp.fromDate(dateEnd))
-          .get();
-
-      final shifts = snapshot.docs
-          .map((doc) => ShiftModel.fromFirestore(doc.id, doc.data()))
-          .where(
-            (shift) => excludeShiftId == null || shift.id != excludeShiftId,
-          )
-          .toList();
-
-      // Filter shifts that overlap with the given time range
-      final overlappingShifts = shifts.where((shift) {
+      final shifts = await getShiftsInRange(dateStart, dateEnd);
+      return shifts.where((shift) {
+        if (excludeShiftId != null && shift.id == excludeShiftId) {
+          return false;
+        }
+        if (!shift.involvesEmployee(employeeId)) return false;
         return _isTimeOverlapping(
           startTime,
           endTime,
@@ -913,35 +924,79 @@ class FirestoreService {
           shift.endTime,
         );
       }).toList();
-
-      return overlappingShifts;
     } catch (e) {
-      // Fallback: get all and filter manually
-      try {
-        final allShifts = await getShiftsForEmployee(employeeId);
-        final sameDateShifts = allShifts.where((shift) {
-          final shiftDate = DateTime(
-            shift.date.year,
-            shift.date.month,
-            shift.date.day,
-          );
-          final checkDate = DateTime(date.year, date.month, date.day);
-          return shiftDate.isAtSameMomentAs(checkDate) &&
-              (excludeShiftId == null || shift.id != excludeShiftId);
-        }).toList();
-
-        return sameDateShifts.where((shift) {
-          return _isTimeOverlapping(
-            startTime,
-            endTime,
-            shift.startTime,
-            shift.endTime,
-          );
-        }).toList();
-      } catch (e2) {
-        return [];
-      }
+      debugPrint('checkOverlappingShifts: $e');
+      return [];
     }
+  }
+
+  /// Mọi ca trong ngày [date] trùng khoảng [startTime, endTime], bỏ qua [excludeShiftId].
+  Future<List<ShiftModel>> getShiftsOverlappingTimeOnDate(
+    DateTime date,
+    TimeOfDay startTime,
+    TimeOfDay endTime, {
+    String? excludeShiftId,
+  }) async {
+    try {
+      final dateStart = DateTime(date.year, date.month, date.day);
+      final dateEnd = DateTime(date.year, date.month, date.day, 23, 59, 59);
+      final shifts = await getShiftsInRange(dateStart, dateEnd);
+      return shifts.where((shift) {
+        if (excludeShiftId != null && shift.id == excludeShiftId) {
+          return false;
+        }
+        return _isTimeOverlapping(
+          startTime,
+          endTime,
+          shift.startTime,
+          shift.endTime,
+        );
+      }).toList();
+    } catch (e) {
+      debugPrint('getShiftsOverlappingTimeOnDate: $e');
+      return [];
+    }
+  }
+
+  /// Đăng ký ca mở. Trả về `true` nếu thành công, `false` nếu đã đủ người hoặc không phải ca mở.
+  Future<bool> registerForOpenShift({
+    required String shiftId,
+    required String employeeId,
+  }) async {
+    final ref = _firestore.collection(shiftsCollection).doc(shiftId);
+    return _firestore.runTransaction((transaction) async {
+      final snap = await transaction.get(ref);
+      if (!snap.exists) return false;
+      final data = snap.data()!;
+      final shift = ShiftModel.fromFirestore(snap.id, data);
+      if (!shift.openSlot) return false;
+      if (shift.registeredEmployeeIds.contains(employeeId)) return true;
+      if (shift.registeredCount >= shift.maxEmployees) return false;
+      final next = [...shift.registeredEmployeeIds, employeeId];
+      transaction.update(ref, {'registeredEmployeeIds': next});
+      return true;
+    });
+  }
+
+  /// Hủy đăng ký ca mở.
+  Future<bool> unregisterFromOpenShift({
+    required String shiftId,
+    required String employeeId,
+  }) async {
+    final ref = _firestore.collection(shiftsCollection).doc(shiftId);
+    return _firestore.runTransaction((transaction) async {
+      final snap = await transaction.get(ref);
+      if (!snap.exists) return false;
+      final data = snap.data()!;
+      final shift = ShiftModel.fromFirestore(snap.id, data);
+      if (!shift.openSlot) return false;
+      if (!shift.registeredEmployeeIds.contains(employeeId)) return true;
+      final next = shift.registeredEmployeeIds
+          .where((id) => id != employeeId)
+          .toList();
+      transaction.update(ref, {'registeredEmployeeIds': next});
+      return true;
+    });
   }
 
   // Helper method to check if two time ranges overlap

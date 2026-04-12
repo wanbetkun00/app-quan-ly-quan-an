@@ -268,6 +268,37 @@ class AppStrings {
       language == AppLanguage.en ? 'Shift Management' : 'Quản lý ca làm';
   String get addNewShift =>
       language == AppLanguage.en ? 'Add New Shift' : 'Thêm ca làm mới';
+  String get shiftBatchCreateHint => language == AppLanguage.en
+      ? 'Same time and settings on each selected day.'
+      : 'Cùng giờ và cài đặt cho mỗi ngày đã chọn trong tuần.';
+  String get shiftBatchSelectDays => language == AppLanguage.en
+      ? 'Days in this week'
+      : 'Ngày trong tuần';
+  String shiftBatchWeekRangeLabel(DateTime monday) {
+    final sun = monday.add(const Duration(days: 6));
+    return language == AppLanguage.en
+        ? '${monday.month}/${monday.day} – ${sun.month}/${sun.day}/${sun.year}'
+        : '${monday.day}/${monday.month} – ${sun.day}/${sun.month}/${sun.year}';
+  }
+
+  String get shiftBatchSelectAll =>
+      language == AppLanguage.en ? 'All days' : 'Cả tuần';
+  String get shiftBatchSelectWeekdays =>
+      language == AppLanguage.en ? 'Mon–Fri' : 'T2–T6';
+  String get shiftBatchSelectWeekend =>
+      language == AppLanguage.en ? 'Sat–Sun' : 'T7, CN';
+  String get shiftBatchClearDays =>
+      language == AppLanguage.en ? 'Clear' : 'Bỏ chọn';
+  String get shiftBatchNeedOneDay => language == AppLanguage.en
+      ? 'Select at least one day in the week.'
+      : 'Chọn ít nhất một ngày trong tuần.';
+  String shiftBatchAddedSummary(int ok, int total) =>
+      language == AppLanguage.en
+          ? 'Created $ok of $total shifts.'
+          : 'Đã tạo $ok/$total ca làm.';
+  String get shiftEndAfterStart => language == AppLanguage.en
+      ? 'End time must be after start time.'
+      : 'Giờ kết thúc phải sau giờ bắt đầu.';
   String get filterByEmployee => language == AppLanguage.en
       ? 'Filter by employee:'
       : 'Lọc theo nhân viên:';
@@ -286,6 +317,37 @@ class AppStrings {
       language == AppLanguage.en ? 'Cancelled' : 'Đã hủy';
   String get editButton => language == AppLanguage.en ? 'Edit' : 'Sửa';
   String get deleteButton => language == AppLanguage.en ? 'Delete' : 'Xóa';
+  String get shiftActionMenuTooltip => language == AppLanguage.en
+      ? 'Shift actions'
+      : 'Thao tác ca làm';
+  String get shiftEditMenuLabel =>
+      language == AppLanguage.en ? 'Edit shift' : 'Sửa ca làm';
+  String get shiftDeleteMenuLabel =>
+      language == AppLanguage.en ? 'Delete shift' : 'Xóa ca làm';
+  String get shiftSameDayOverlapTitle => language == AppLanguage.en
+      ? 'Shift time conflict'
+      : 'Trùng giờ ca làm';
+  String get shiftSameDayOverlapIntro => language == AppLanguage.en
+      ? 'This time overlaps another shift on the same day. Use at most three non-overlapping blocks: Morning, Afternoon, Evening.'
+      : 'Khoảng giờ này trùng với một ca khác trong cùng ngày. Mỗi ngày chỉ nên có tối đa ba ca không trùng giờ: Sáng, Chiều, Tối.';
+  String get shiftDayPartMorningLabel => language == AppLanguage.en
+      ? 'Morning shift (07:00–12:00)'
+      : 'Ca sáng (07:00–12:00)';
+  String get shiftDayPartAfternoonLabel => language == AppLanguage.en
+      ? 'Afternoon shift (13:00–18:00)'
+      : 'Ca chiều (13:00–18:00)';
+  String get shiftDayPartEveningLabel => language == AppLanguage.en
+      ? 'Evening shift (18:00–23:00)'
+      : 'Ca tối (18:00–23:00)';
+  String shiftDayPartCustomRange(String start, String end) =>
+      language == AppLanguage.en
+          ? 'Other shift ($start–$end)'
+          : 'Ca khác ($start–$end)';
+  String get shiftOverlapInternalDuplicate => language == AppLanguage.en
+      ? 'Two proposed shifts on this day overlap in time.'
+      : 'Hai ca đề xuất trong cùng ngày đang trùng giờ.';
+  String get shiftOverlapDialogClose =>
+      language == AppLanguage.en ? 'Close' : 'Đóng';
   String get confirmDelete =>
       language == AppLanguage.en ? 'Confirm Delete' : 'Xác nhận xóa';
   String confirmDeleteShift(String employeeName) => language == AppLanguage.en
@@ -294,6 +356,44 @@ class AppStrings {
   String shiftAddedFor(String employeeName) => language == AppLanguage.en
       ? 'Shift added for $employeeName'
       : 'Đã thêm ca làm cho $employeeName';
+  String get shiftAddedOpenSlot => language == AppLanguage.en
+      ? 'Open registration shift created'
+      : 'Đã tạo ca mở đăng ký';
+  String get confirmDeleteOpenShift => language == AppLanguage.en
+      ? 'Delete this open shift? All sign-ups will be removed.'
+      : 'Bạn có chắc muốn xóa ca mở đăng ký? Mọi đăng ký sẽ bị xóa.';
+  String get registerForShift =>
+      language == AppLanguage.en ? 'Sign up' : 'Đăng ký';
+  String get unregisterFromShift =>
+      language == AppLanguage.en ? 'Cancel sign-up' : 'Hủy đăng ký';
+  String get shiftRegisterSuccess => language == AppLanguage.en
+      ? 'Signed up for the shift'
+      : 'Đã đăng ký ca';
+  String get shiftUnregisterSuccess => language == AppLanguage.en
+      ? 'Sign-up cancelled'
+      : 'Đã hủy đăng ký';
+  String get shiftStaffFull =>
+      language == AppLanguage.en ? 'Full' : 'Đã đủ người';
+  String get shiftSignupRequiresLinkedAccount => language == AppLanguage.en
+      ? 'Log in with a registered profile to sign up for shifts.'
+      : 'Đăng nhập bằng tài khoản được quản lý thêm trong hệ thống để đăng ký ca.';
+  String get staffingDeficit =>
+      language == AppLanguage.en ? 'Short staffed' : 'Thiếu người';
+  String get staffingAlmostFull =>
+      language == AppLanguage.en ? 'Almost full' : 'Gần đủ';
+  String get staffingFullLabel =>
+      language == AppLanguage.en ? 'Filled' : 'Đủ';
+  String get assignOneEmployeeMode => language == AppLanguage.en
+      ? 'Assign to one employee'
+      : 'Gán một nhân viên';
+  String get openSlotMode => language == AppLanguage.en
+      ? 'Open shift (staff sign up)'
+      : 'Ca mở (nhiều người đăng ký)';
+  String get openShiftStoredEmployeeName => language == AppLanguage.en
+      ? 'Open shift'
+      : 'Ca mở đăng ký';
+  String get maxEmployeesLabel =>
+      language == AppLanguage.en ? 'People needed' : 'Số người cần';
   String get errorAddingShift =>
       language == AppLanguage.en ? 'Error adding shift' : 'Lỗi khi thêm ca làm';
   String get shiftUpdated =>
@@ -314,15 +414,37 @@ class AppStrings {
   String get selectEmployeeRequired => language == AppLanguage.en
       ? 'Please select an employee'
       : 'Vui lòng chọn nhân viên';
+  String get formValidationFailed => language == AppLanguage.en
+      ? 'Please fix the highlighted fields (scroll up if needed).'
+      : 'Vui lòng sửa các ô lỗi (cuộn lên xem thông báo dưới ô).';
   String get workDayLabel =>
       language == AppLanguage.en ? 'Work Day' : 'Ngày làm việc';
   String get startTimeLabel =>
       language == AppLanguage.en ? 'Start Time' : 'Giờ bắt đầu';
   String get endTimeLabel =>
       language == AppLanguage.en ? 'End Time' : 'Giờ kết thúc';
+  String get shiftPresetSectionTitle => language == AppLanguage.en
+      ? 'Quick time blocks'
+      : 'Khung giờ gợi ý';
+  String get shiftPresetMorning =>
+      language == AppLanguage.en ? 'Morning' : 'Sáng';
+  String get shiftPresetAfternoon =>
+      language == AppLanguage.en ? 'Afternoon' : 'Chiều';
+  String get shiftPresetEvening =>
+      language == AppLanguage.en ? 'Evening' : 'Tối';
+  String get shiftPresetFiveHours =>
+      language == AppLanguage.en ? '5 hours' : '5 tiếng';
+  String get shiftPresetDurationAbbr =>
+      language == AppLanguage.en ? '5h' : '5h';
+  String get shiftStatusFieldLabel =>
+      language == AppLanguage.en ? 'Shift status' : 'Trạng thái ca';
   String get notesLabel =>
       language == AppLanguage.en ? 'Notes (optional)' : 'Ghi chú (tùy chọn)';
   String get saveButton => language == AppLanguage.en ? 'Save' : 'Lưu';
+  String saveBatchButton(int n) {
+    if (n <= 1) return saveButton;
+    return language == AppLanguage.en ? 'Save ($n shifts)' : 'Lưu ($n ca)';
+  }
   String get shiftOverlapWarning => language == AppLanguage.en
       ? 'Shift Overlap Warning'
       : 'Cảnh báo trùng ca làm';
@@ -335,7 +457,7 @@ class AppStrings {
   String get addAnyway =>
       language == AppLanguage.en ? 'Add Anyway' : 'Vẫn thêm';
 
-  // My Shifts screen (Waiter)
+  // My Shifts screen (staff & cashier)
   String get myShiftsTitle =>
       language == AppLanguage.en ? 'My Shifts' : 'Ca làm của tôi';
   String get previousWeek =>

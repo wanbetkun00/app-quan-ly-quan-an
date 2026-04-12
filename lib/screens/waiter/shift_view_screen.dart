@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/shift_model.dart';
 import '../../models/enums.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/restaurant_provider.dart';
 import '../../providers/app_strings.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/week_day_horizontal_pager.dart';
 
 class ShiftViewScreen extends StatefulWidget {
   const ShiftViewScreen({super.key});
@@ -15,6 +17,46 @@ class ShiftViewScreen extends StatefulWidget {
 
 class _ShiftViewScreenState extends State<ShiftViewScreen> {
   DateTime _currentWeek = DateTime.now();
+  late final PageController _dayPageController;
+  int _activeDayIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _activeDayIndex = _defaultDayPageIndex();
+    _dayPageController = PageController(initialPage: _activeDayIndex);
+  }
+
+  @override
+  void dispose() {
+    _dayPageController.dispose();
+    super.dispose();
+  }
+
+  /// Trang ngày mặc định: hôm nay nếu nằm trong tuần đang xem, không thì Thứ Hai (0).
+  int _defaultDayPageIndex() {
+    final now = DateTime.now();
+    final days = _getWeekDays(_currentWeek);
+    for (var i = 0; i < days.length; i++) {
+      final d = days[i];
+      if (d.year == now.year && d.month == now.month && d.day == now.day) {
+        return i;
+      }
+    }
+    return 0;
+  }
+
+  void _setWeekAndSyncDayPage(DateTime newWeek) {
+    setState(() {
+      _currentWeek = newWeek;
+      _activeDayIndex = _defaultDayPageIndex();
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _dayPageController.hasClients) {
+        _dayPageController.jumpToPage(_activeDayIndex);
+      }
+    });
+  }
 
   List<DateTime> _getWeekDays(DateTime date) {
     // Get Monday of the week
@@ -25,11 +67,36 @@ class _ShiftViewScreenState extends State<ShiftViewScreen> {
     return List.generate(7, (index) => monday.add(Duration(days: index)));
   }
 
+  List<ShiftModel> _shiftsInWeekForStaff(
+    List<ShiftModel> all,
+    String employeeId,
+  ) {
+    final weekday = _currentWeek.weekday;
+    final weekStart = _currentWeek.subtract(Duration(days: weekday - 1));
+    final weekEnd = weekStart.add(const Duration(days: 6));
+    final weekStartN = DateTime(weekStart.year, weekStart.month, weekStart.day);
+    final weekEndN = DateTime(weekEnd.year, weekEnd.month, weekEnd.day);
+
+    return all.where((shift) {
+      final shiftDate =
+          DateTime(shift.date.year, shift.date.month, shift.date.day);
+      final inWeek = shiftDate.isAtSameMomentAs(weekStartN) ||
+          (shiftDate.isAfter(weekStartN) &&
+              shiftDate.isBefore(weekEndN)) ||
+          shiftDate.isAtSameMomentAs(weekEndN);
+      if (!inWeek) return false;
+      if (shift.openSlot) return true;
+      if (employeeId.isEmpty) return false;
+      return shift.involvesEmployee(employeeId);
+    }).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     final restaurantProvider = Provider.of<RestaurantProvider>(context);
+    final auth = Provider.of<AuthProvider>(context);
+    final employeeId = auth.employeeId ?? '';
 
-    // Show all shifts for all employees in the week (both staff and manager)
     final weekDays = _getWeekDays(_currentWeek);
 
     return Scaffold(
@@ -44,11 +111,16 @@ class _ShiftViewScreenState extends State<ShiftViewScreen> {
         elevation: 0,
         actions: [
           IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: context.strings.refresh,
+            onPressed: () => restaurantProvider.refreshData(),
+          ),
+          IconButton(
             icon: const Icon(Icons.chevron_left, size: 28),
             onPressed: () {
-              setState(() {
-                _currentWeek = _currentWeek.subtract(const Duration(days: 7));
-              });
+              _setWeekAndSyncDayPage(
+                _currentWeek.subtract(const Duration(days: 7)),
+              );
             },
             tooltip: context.strings.previousWeek,
           ),
@@ -61,9 +133,7 @@ class _ShiftViewScreenState extends State<ShiftViewScreen> {
             child: IconButton(
               icon: const Icon(Icons.today, size: 24),
               onPressed: () {
-                setState(() {
-                  _currentWeek = DateTime.now();
-                });
+                _setWeekAndSyncDayPage(DateTime.now());
               },
               tooltip: context.strings.thisWeek,
             ),
@@ -71,20 +141,21 @@ class _ShiftViewScreenState extends State<ShiftViewScreen> {
           IconButton(
             icon: const Icon(Icons.chevron_right, size: 28),
             onPressed: () {
-              setState(() {
-                _currentWeek = _currentWeek.add(const Duration(days: 7));
-              });
+              _setWeekAndSyncDayPage(
+                _currentWeek.add(const Duration(days: 7)),
+              );
             },
             tooltip: context.strings.nextWeek,
           ),
           const SizedBox(width: 8),
         ],
       ),
-      body: FutureBuilder<List<ShiftModel>>(
-        key: ValueKey('${_currentWeek}_all'),
-        future: _getAllWeekShifts(restaurantProvider),
+      body: StreamBuilder<List<ShiftModel>>(
+        key: ValueKey(_currentWeek.millisecondsSinceEpoch),
+        stream: restaurantProvider.getShiftsStream(),
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
+          if (snapshot.connectionState == ConnectionState.waiting &&
+              !snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
 
@@ -104,7 +175,8 @@ class _ShiftViewScreenState extends State<ShiftViewScreen> {
             );
           }
 
-          final shifts = snapshot.data ?? [];
+          final shifts =
+              _shiftsInWeekForStaff(snapshot.data ?? [], employeeId);
 
           // Group by date - normalize dates for proper comparison
           final groupedShifts = <String, List<ShiftModel>>{};
@@ -114,84 +186,93 @@ class _ShiftViewScreenState extends State<ShiftViewScreen> {
             groupedShifts.putIfAbsent(dateKey, () => []).add(shift);
           }
 
-          // Debug: print shifts count
-          debugPrint('Total shifts: ${shifts.length}');
-          debugPrint('Grouped shifts: ${groupedShifts.length}');
-
-          return RefreshIndicator(
-            onRefresh: () async {
-              setState(() {});
-            },
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Week header with improved styling
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.05),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.calendar_today,
-                          color: AppTheme.primaryOrange,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 12),
-                        Text(
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.05),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.calendar_today,
+                        color: AppTheme.primaryOrange,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
                           context.strings.weekLabel(
                             _getWeekNumber(_currentWeek),
                             _currentWeek.year,
                           ),
                           style: TextStyle(
-                            fontSize: 20,
+                            fontSize: 17,
                             fontWeight: FontWeight.bold,
                             color: AppTheme.darkGreyText,
                           ),
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        const Spacer(),
-                        Text(
-                          _formatDateRange(weekDays.first, weekDays.last),
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey[600],
-                          ),
+                      ),
+                      Text(
+                        _formatDateRange(weekDays.first, weekDays.last),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey[600],
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 16),
-                  // Week view - vertical list
-                  ListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
+                ),
+                const SizedBox(height: 8),
+                WeekDayStrip(
+                  weekDays: weekDays,
+                  selectedIndex: _activeDayIndex,
+                  pageController: _dayPageController,
+                ),
+                const SizedBox(height: 8),
+                Expanded(
+                  child: PageView.builder(
+                    controller: _dayPageController,
+                    onPageChanged: (i) {
+                      setState(() => _activeDayIndex = i);
+                    },
                     itemCount: weekDays.length,
-                      itemBuilder: (context, index) {
+                    itemBuilder: (context, index) {
                       final date = weekDays[index];
-                      final dateKey = '${date.year}-${date.month}-${date.day}';
+                      final dateKey =
+                          '${date.year}-${date.month}-${date.day}';
                       final dateShifts = groupedShifts[dateKey] ?? [];
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: _buildDayCard(context, date, dateShifts),
+                      return SingleChildScrollView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: _buildDayCard(
+                          context,
+                          date,
+                          dateShifts,
+                          restaurantProvider,
+                          employeeId,
+                        ),
                       );
                     },
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           );
         },
@@ -205,59 +286,17 @@ class _ShiftViewScreenState extends State<ShiftViewScreen> {
     return ((daysSinceFirstJan + firstJan.weekday) / 7).ceil();
   }
 
-  Future<List<ShiftModel>> _getAllWeekShifts(
-    RestaurantProvider provider,
-  ) async {
-    try {
-      final weekday = _currentWeek.weekday;
-      final weekStart = _currentWeek.subtract(Duration(days: weekday - 1));
-      final weekEnd = weekStart.add(const Duration(days: 6));
-
-      // Normalize dates to start of day for comparison
-      final weekStartNormalized = DateTime(
-        weekStart.year,
-        weekStart.month,
-        weekStart.day,
-      );
-      final weekEndNormalized = DateTime(
-        weekEnd.year,
-        weekEnd.month,
-        weekEnd.day,
-      );
-
-      // Get all shifts (not filtered by employee)
-      final allShifts = await provider.getShifts();
-      final filteredShifts = allShifts.where((shift) {
-        final shiftDate = DateTime(
-          shift.date.year,
-          shift.date.month,
-          shift.date.day,
-        );
-        // Check if shift date is within the week range (inclusive)
-        final isInRange =
-            shiftDate.isAtSameMomentAs(weekStartNormalized) ||
-            (shiftDate.isAfter(weekStartNormalized) &&
-                shiftDate.isBefore(weekEndNormalized)) ||
-            shiftDate.isAtSameMomentAs(weekEndNormalized);
-        return isInRange;
-      }).toList();
-
-      debugPrint('Week: $weekStartNormalized to $weekEndNormalized');
-      debugPrint('Total shifts from DB: ${allShifts.length}');
-      debugPrint('Filtered shifts: ${filteredShifts.length}');
-
-      return filteredShifts;
-    } catch (e) {
-      debugPrint('Error getting all week shifts: $e');
-      return [];
-    }
-  }
-
   String _formatDateRange(DateTime start, DateTime end) {
     return '${start.day}/${start.month} - ${end.day}/${end.month}';
   }
 
-  Widget _buildDayCard(BuildContext context, DateTime date, List<ShiftModel> shifts) {
+  Widget _buildDayCard(
+    BuildContext context,
+    DateTime date,
+    List<ShiftModel> shifts,
+    RestaurantProvider restaurantProvider,
+    String employeeId,
+  ) {
     final isToday =
         date.year == DateTime.now().year &&
         date.month == DateTime.now().month &&
@@ -416,7 +455,12 @@ class _ShiftViewScreenState extends State<ShiftViewScreen> {
                 children: shifts.map((shift) {
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 8),
-                    child: _buildShiftCard(context, shift, true), // Always show employee name
+                    child: _buildShiftCard(
+                      context,
+                      shift,
+                      restaurantProvider,
+                      employeeId,
+                    ),
                   );
                 }).toList(),
               ),
@@ -426,24 +470,60 @@ class _ShiftViewScreenState extends State<ShiftViewScreen> {
     );
   }
 
-  Widget _buildShiftCard(BuildContext context, ShiftModel shift, bool showEmployeeName) {
+  Color _openSlotStaffingColor(ShiftStaffingLevel level) {
+    switch (level) {
+      case ShiftStaffingLevel.deficit:
+        return Colors.red.shade600;
+      case ShiftStaffingLevel.almostFull:
+        return Colors.amber.shade800;
+      case ShiftStaffingLevel.full:
+        return Colors.green.shade600;
+      case ShiftStaffingLevel.na:
+        return AppTheme.primaryOrange;
+    }
+  }
+
+  String _staffingLabel(BuildContext context, ShiftModel shift) {
+    final s = context.strings;
+    switch (shift.staffingLevel) {
+      case ShiftStaffingLevel.full:
+        return s.staffingFullLabel;
+      case ShiftStaffingLevel.almostFull:
+        return s.staffingAlmostFull;
+      case ShiftStaffingLevel.deficit:
+        return s.staffingDeficit;
+      case ShiftStaffingLevel.na:
+        return '';
+    }
+  }
+
+  Widget _buildShiftCard(
+    BuildContext context,
+    ShiftModel shift,
+    RestaurantProvider restaurantProvider,
+    String employeeId,
+  ) {
     Color statusColor;
     IconData statusIcon;
 
     switch (shift.status) {
       case ShiftStatus.scheduled:
-        statusColor = const Color(0xFFFFB800); // Brighter yellow
+        statusColor = const Color(0xFFFFB800);
         statusIcon = Icons.schedule;
         break;
       case ShiftStatus.completed:
-        statusColor = const Color(0xFF4CAF50); // Brighter green
+        statusColor = const Color(0xFF4CAF50);
         statusIcon = Icons.check_circle;
         break;
       case ShiftStatus.cancelled:
-        statusColor = const Color(0xFFE53935); // Brighter red
+        statusColor = const Color(0xFFE53935);
         statusIcon = Icons.cancel;
         break;
     }
+
+    final staffingColor = shift.openSlot
+        ? _openSlotStaffingColor(shift.staffingLevel)
+        : statusColor;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8, left: 6, right: 6),
@@ -475,7 +555,55 @@ class _ShiftViewScreenState extends State<ShiftViewScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (showEmployeeName) ...[
+            if (shift.openSlot) ...[
+              Row(
+                children: [
+                  Icon(Icons.groups_2, size: 12, color: AppTheme.darkGreyText),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      '${context.strings.openShiftStoredEmployeeName} · ${shift.registeredCount}/${shift.maxEmployees}',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.darkGreyText,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: staffingColor,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    _staffingLabel(context, shift),
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: staffingColor,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Divider(
+                height: 1,
+                thickness: 1,
+                color: statusColor.withValues(alpha: 0.2),
+              ),
+              const SizedBox(height: 8),
+            ] else ...[
               Row(
                 children: [
                   Icon(Icons.person, size: 12, color: AppTheme.darkGreyText),
@@ -502,7 +630,6 @@ class _ShiftViewScreenState extends State<ShiftViewScreen> {
               ),
               const SizedBox(height: 8),
             ],
-            // Time row
             Row(
               children: [
                 Container(
@@ -552,6 +679,76 @@ class _ShiftViewScreenState extends State<ShiftViewScreen> {
                 ),
               ],
             ),
+            if (shift.openSlot &&
+                shift.status == ShiftStatus.scheduled) ...[
+              const SizedBox(height: 10),
+              if (employeeId.isEmpty)
+                Text(
+                  context.strings.shiftSignupRequiresLinkedAccount,
+                  style: TextStyle(fontSize: 10, color: Colors.grey[600]),
+                )
+              else if (shift.isRegistered(employeeId))
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: () async {
+                      final err =
+                          await restaurantProvider.unregisterStaffFromOpenShift(
+                        shiftId: shift.id,
+                        employeeId: employeeId,
+                      );
+                      if (!context.mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            err ?? context.strings.shiftUnregisterSuccess,
+                          ),
+                          backgroundColor:
+                              err != null ? Colors.red : AppTheme.statusGreen,
+                        ),
+                      );
+                    },
+                    child: Text(context.strings.unregisterFromShift),
+                  ),
+                )
+              else if (shift.isFull)
+                Text(
+                  context.strings.shiftStaffFull,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[700],
+                    fontWeight: FontWeight.w500,
+                  ),
+                )
+              else
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primaryOrange,
+                      foregroundColor: Colors.white,
+                    ),
+                    onPressed: () async {
+                      final err =
+                          await restaurantProvider.registerStaffForOpenShift(
+                        shiftId: shift.id,
+                        employeeId: employeeId,
+                      );
+                      if (!context.mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            err ?? context.strings.shiftRegisterSuccess,
+                          ),
+                          backgroundColor:
+                              err != null ? Colors.red : AppTheme.statusGreen,
+                        ),
+                      );
+                    },
+                    child: Text(context.strings.registerForShift),
+                  ),
+                ),
+            ],
             if (shift.notes != null && shift.notes!.isNotEmpty) ...[
               const SizedBox(height: 8),
               Container(

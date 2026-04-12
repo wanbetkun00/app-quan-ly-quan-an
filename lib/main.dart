@@ -12,6 +12,7 @@ import 'screens/waiter/waiter_dashboard_screen.dart';
 import 'screens/kitchen/kitchen_display_screen.dart';
 import 'screens/manager/manager_dashboard_screen.dart';
 import 'screens/cashier/cashier_dashboard_screen.dart';
+import 'screens/waiter/shift_view_screen.dart';
 import 'screens/auth/login_screen.dart';
 import 'models/enums.dart';
 
@@ -171,6 +172,18 @@ class _MainNavigationScaffoldState extends State<MainNavigationScaffold>
         appBar: AppBar(
           title: Text('Cashier - ${auth.username ?? ''}'),
           actions: [
+            IconButton(
+              icon: const Icon(Icons.calendar_today),
+              tooltip: context.strings.mgrTabShifts,
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (context) => const ShiftViewScreen(),
+                  ),
+                );
+              },
+            ),
             TextButton.icon(
               onPressed: auth.logout,
               icon: const Icon(Icons.logout, size: 18),

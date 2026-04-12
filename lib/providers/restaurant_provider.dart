@@ -1403,7 +1403,35 @@ class RestaurantProvider extends ChangeNotifier {
     }
   }
 
-  // Check for overlapping shifts
+  /// Trùng giờ trong cùng một ngày (mọi nhân viên / ca mở), dùng khi quản lý tạo hoặc sửa ca.
+  Future<List<ShiftModel>> getShiftsOverlappingTimeOnDate(
+    DateTime date,
+    TimeOfDay startTime,
+    TimeOfDay endTime, {
+    String? excludeShiftId,
+  }) async {
+    try {
+      return await _firestoreService.getShiftsOverlappingTimeOnDate(
+        date,
+        startTime,
+        endTime,
+        excludeShiftId: excludeShiftId,
+      );
+    } catch (e, stackTrace) {
+      _errorHandler.handleError(
+        e,
+        stackTrace,
+        context: 'Lỗi khi kiểm tra trùng ca trong ngày',
+        fallbackMessage: 'Lỗi khi kiểm tra trùng ca',
+        onMessage: (message) {
+          _errorMessage = message;
+          notifyListeners();
+        },
+      );
+      return [];
+    }
+  }
+
   Future<List<ShiftModel>> checkOverlappingShifts(
     String employeeId,
     DateTime date,
@@ -1431,6 +1459,87 @@ class RestaurantProvider extends ChangeNotifier {
         },
       );
       return [];
+    }
+  }
+
+  /// `null` = thành công; chuỗi = lý do lỗi.
+  Future<String?> registerStaffForOpenShift({
+    required String shiftId,
+    required String employeeId,
+  }) async {
+    try {
+      if (employeeId.isEmpty) {
+        return 'Không xác định được tài khoản nhân viên.';
+      }
+      final target = await _firestoreService.getShiftById(shiftId);
+      if (target == null || !target.openSlot) {
+        return 'Không tìm thấy ca hoặc ca không cho đăng ký.';
+      }
+      if (target.isFull && !target.isRegistered(employeeId)) {
+        return 'Ca đã đủ người.';
+      }
+      if (target.isRegistered(employeeId)) {
+        return null;
+      }
+      final overlaps = await checkOverlappingShifts(
+        employeeId,
+        target.date,
+        target.startTime,
+        target.endTime,
+        excludeShiftId: shiftId,
+      );
+      if (overlaps.isNotEmpty) {
+        return 'Trùng giờ với ca khác của bạn.';
+      }
+      final ok = await _firestoreService.registerForOpenShift(
+        shiftId: shiftId,
+        employeeId: employeeId,
+      );
+      if (!ok) {
+        return 'Không thể đăng ký (ca đã đủ hoặc dữ liệu thay đổi).';
+      }
+      return null;
+    } catch (e, stackTrace) {
+      _errorHandler.handleError(
+        e,
+        stackTrace,
+        context: 'Lỗi khi đăng ký ca mở',
+        fallbackMessage: 'Lỗi khi đăng ký ca',
+        onMessage: (message) {
+          _errorMessage = message;
+          notifyListeners();
+        },
+      );
+      return 'Lỗi khi đăng ký ca.';
+    }
+  }
+
+  /// `null` = thành công.
+  Future<String?> unregisterStaffFromOpenShift({
+    required String shiftId,
+    required String employeeId,
+  }) async {
+    try {
+      final ok = await _firestoreService.unregisterFromOpenShift(
+        shiftId: shiftId,
+        employeeId: employeeId,
+      );
+      if (!ok) {
+        return 'Không thể hủy đăng ký.';
+      }
+      return null;
+    } catch (e, stackTrace) {
+      _errorHandler.handleError(
+        e,
+        stackTrace,
+        context: 'Lỗi khi hủy đăng ký ca mở',
+        fallbackMessage: 'Lỗi khi hủy đăng ký',
+        onMessage: (message) {
+          _errorMessage = message;
+          notifyListeners();
+        },
+      );
+      return 'Lỗi khi hủy đăng ký.';
     }
   }
 

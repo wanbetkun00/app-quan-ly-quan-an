@@ -5,8 +5,10 @@ import '../../models/employee_model.dart';
 import '../../models/enums.dart';
 import '../../providers/restaurant_provider.dart';
 import '../../providers/app_strings.dart';
+import '../../providers/language_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/add_shift_dialog.dart';
+import '../../widgets/week_day_horizontal_pager.dart';
 
 class ShiftManagementScreen extends StatefulWidget {
   const ShiftManagementScreen({super.key});
@@ -18,6 +20,53 @@ class ShiftManagementScreen extends StatefulWidget {
 class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
   DateTime _selectedWeek = DateTime.now();
   String? _selectedEmployeeId;
+  late final PageController _dayPageController;
+  int _activeDayIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _activeDayIndex = _defaultDayPageIndex();
+    _dayPageController = PageController(initialPage: _activeDayIndex);
+  }
+
+  @override
+  void dispose() {
+    _dayPageController.dispose();
+    super.dispose();
+  }
+
+  List<DateTime> _weekDaysForSelected() {
+    final m = _getWeekStart(_selectedWeek);
+    return List.generate(
+      7,
+      (i) => DateTime(m.year, m.month, m.day).add(Duration(days: i)),
+    );
+  }
+
+  int _defaultDayPageIndex() {
+    final now = DateTime.now();
+    final days = _weekDaysForSelected();
+    for (var i = 0; i < days.length; i++) {
+      final d = days[i];
+      if (d.year == now.year && d.month == now.month && d.day == now.day) {
+        return i;
+      }
+    }
+    return 0;
+  }
+
+  void _setWeekAndSyncDayPage(DateTime newWeek) {
+    setState(() {
+      _selectedWeek = newWeek;
+      _activeDayIndex = _defaultDayPageIndex();
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _dayPageController.hasClients) {
+        _dayPageController.jumpToPage(_activeDayIndex);
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -27,6 +76,11 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
       appBar: AppBar(
         title: Text(context.strings.shiftManagementTitle),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: context.strings.refresh,
+            onPressed: () => provider.refreshShifts(),
+          ),
           IconButton(
             icon: const Icon(Icons.add),
             onPressed: () => _showAddShiftDialog(context, provider),
@@ -46,11 +100,9 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
                 IconButton(
                   icon: const Icon(Icons.chevron_left),
                   onPressed: () {
-                    setState(() {
-                      _selectedWeek = _selectedWeek.subtract(
-                        const Duration(days: 7),
-                      );
-                    });
+                    _setWeekAndSyncDayPage(
+                      _selectedWeek.subtract(const Duration(days: 7)),
+                    );
                   },
                 ),
                 Expanded(
@@ -63,9 +115,7 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
                         lastDate: DateTime(2030),
                       );
                       if (picked != null) {
-                        setState(() {
-                          _selectedWeek = picked;
-                        });
+                        _setWeekAndSyncDayPage(picked);
                       }
                     },
                     child: Text(
@@ -82,11 +132,9 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
                 IconButton(
                   icon: const Icon(Icons.chevron_right),
                   onPressed: () {
-                    setState(() {
-                      _selectedWeek = _selectedWeek.add(
-                        const Duration(days: 7),
-                      );
-                    });
+                    _setWeekAndSyncDayPage(
+                      _selectedWeek.add(const Duration(days: 7)),
+                    );
                   },
                 ),
               ],
@@ -264,52 +312,30 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
                 }
 
                 final allShifts = snapshot.data ?? [];
+                final weekDays = _weekDaysForSelected();
+                final weekStart = weekDays.first;
+                final weekEnd = weekDays.last;
 
-                // Filter by week
-                final weekStart = _getWeekStart(_selectedWeek);
-                final weekEnd = weekStart.add(const Duration(days: 6));
                 final weekShifts = allShifts.where((shift) {
                   final shiftDate = DateTime(
                     shift.date.year,
                     shift.date.month,
                     shift.date.day,
                   );
-                  return shiftDate.isAfter(
-                        weekStart.subtract(const Duration(days: 1)),
-                      ) &&
-                      shiftDate.isBefore(weekEnd.add(const Duration(days: 1)));
+                  return !shiftDate.isBefore(weekStart) &&
+                      !shiftDate.isAfter(weekEnd);
                 }).toList();
 
-                // Filter by employee if selected
                 final filteredShifts = _selectedEmployeeId == null
                     ? weekShifts
                     : weekShifts
                           .where(
-                            (shift) => shift.employeeId == _selectedEmployeeId,
+                            (shift) => shift.involvesEmployee(
+                              _selectedEmployeeId!,
+                            ),
                           )
                           .toList();
 
-                if (filteredShifts.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.calendar_today,
-                          size: 64,
-                          color: Colors.grey[400],
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          context.strings.noShiftsThisWeek,
-                          style: TextStyle(color: Colors.grey[600]),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-
-                // Group by date
                 final groupedShifts = <DateTime, List<ShiftModel>>{};
                 for (var shift in filteredShifts) {
                   final date = DateTime(
@@ -320,21 +346,40 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
                   groupedShifts.putIfAbsent(date, () => []).add(shift);
                 }
 
-                final sortedDates = groupedShifts.keys.toList()..sort();
-
-                return RefreshIndicator(
-                  onRefresh: () async {
-                    await provider.refreshShifts();
-                  },
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: sortedDates.length,
-                    itemBuilder: (context, index) {
-                      final date = sortedDates[index];
-                      final shifts = groupedShifts[date]!;
-
-                      return _buildDateSection(date, shifts, provider);
-                    },
+                return Padding(
+                  padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      WeekDayStrip(
+                        weekDays: weekDays,
+                        selectedIndex: _activeDayIndex,
+                        pageController: _dayPageController,
+                      ),
+                      const SizedBox(height: 8),
+                      Expanded(
+                        child: PageView.builder(
+                          controller: _dayPageController,
+                          onPageChanged: (i) {
+                            setState(() => _activeDayIndex = i);
+                          },
+                          itemCount: weekDays.length,
+                          itemBuilder: (context, index) {
+                            final date = weekDays[index];
+                            final shifts = groupedShifts[date] ?? [];
+                            return SingleChildScrollView(
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: _buildDateSection(
+                                date,
+                                shifts,
+                                provider,
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
                   ),
                 );
               },
@@ -356,7 +401,7 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
         date.day == DateTime.now().day;
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.fromLTRB(4, 0, 4, 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -410,10 +455,58 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
               ],
             ),
           ),
-          ...shifts.map((shift) => _buildShiftTile(context, shift, provider)),
+          if (shifts.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 16),
+              child: Center(
+                child: Text(
+                  context.strings.noShifts,
+                  style: TextStyle(color: Colors.grey[600], fontSize: 15),
+                ),
+              ),
+            )
+          else
+            ...shifts.asMap().entries.map((entry) {
+              final i = entry.key;
+              final shift = entry.value;
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (i > 0) const Divider(height: 1),
+                  _buildShiftTile(context, shift, provider),
+                ],
+              );
+            }),
         ],
       ),
     );
+  }
+
+  Color _staffingDotColor(ShiftStaffingLevel level) {
+    switch (level) {
+      case ShiftStaffingLevel.deficit:
+        return Colors.red.shade600;
+      case ShiftStaffingLevel.almostFull:
+        return Colors.amber.shade700;
+      case ShiftStaffingLevel.full:
+        return Colors.green.shade600;
+      case ShiftStaffingLevel.na:
+        return Colors.grey;
+    }
+  }
+
+  String _staffingLabel(BuildContext context, ShiftModel shift) {
+    final s = context.strings;
+    switch (shift.staffingLevel) {
+      case ShiftStaffingLevel.full:
+        return s.staffingFullLabel;
+      case ShiftStaffingLevel.almostFull:
+        return s.staffingAlmostFull;
+      case ShiftStaffingLevel.deficit:
+        return s.staffingDeficit;
+      case ShiftStaffingLevel.na:
+        return '';
+    }
   }
 
   Widget _buildShiftTile(
@@ -443,75 +536,132 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
         break;
     }
 
-    return ListTile(
-      leading: Container(
-        width: 50,
-        height: 50,
-        decoration: BoxDecoration(
-          color: statusColor.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Icon(statusIcon, color: statusColor),
-      ),
-      title: Text(
-        shift.employeeName,
-        style: const TextStyle(fontWeight: FontWeight.bold),
-      ),
-      subtitle: Column(
+    final openStaffingColor = shift.openSlot
+        ? _staffingDotColor(shift.staffingLevel)
+        : statusColor;
+    final openStaffingIcon = shift.openSlot ? Icons.groups_2 : statusIcon;
+
+    final menuStrings = AppStrings(
+      Provider.of<LanguageProvider>(context, listen: false).language,
+    );
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SizedBox(height: 4),
-          Row(
-            children: [
-              Icon(Icons.access_time, size: 12, color: Colors.grey[600]),
-              const SizedBox(width: 4),
-              Flexible(
-                child: Text(
-                  '${_formatTime(shift.startTime)} - ${_formatTime(shift.endTime)}',
-                  style: TextStyle(fontSize: 11, color: Colors.grey[700]),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                '(${shift.durationHours.toStringAsFixed(1)}h)',
-                style: TextStyle(fontSize: 11, color: Colors.grey[600]),
-              ),
-            ],
-          ),
-          if (shift.notes != null && shift.notes!.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Text(
-              shift.notes!,
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey[600],
-                fontStyle: FontStyle.italic,
-              ),
-            ),
-          ],
-        ],
-      ),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            width: 48,
+            height: 48,
             decoration: BoxDecoration(
-              color: statusColor.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
+              color: (shift.openSlot ? openStaffingColor : statusColor)
+                  .withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(8),
             ),
-            child: Text(
-              statusText,
-              style: TextStyle(
-                color: statusColor,
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-              ),
+            child: Icon(
+              openStaffingIcon,
+              color: shift.openSlot ? openStaffingColor : statusColor,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        shift.openSlot
+                            ? '${context.strings.openShiftStoredEmployeeName} · ${shift.registeredCount}/${shift.maxEmployees}'
+                            : shift.employeeName,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: statusColor.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        statusText,
+                        style: TextStyle(
+                          color: statusColor,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Icon(Icons.access_time, size: 14, color: Colors.grey[600]),
+                    const SizedBox(width: 4),
+                    Flexible(
+                      child: Text(
+                        '${_formatTime(shift.startTime)} – ${_formatTime(shift.endTime)} (${shift.durationHours.toStringAsFixed(1)}h)',
+                        style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+                if (shift.openSlot) ...[
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Container(
+                        width: 10,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          color: openStaffingColor,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          _staffingLabel(context, shift),
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: openStaffingColor,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+                if (shift.notes != null && shift.notes!.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    shift.notes!,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
           PopupMenuButton<String>(
+            tooltip: menuStrings.shiftActionMenuTooltip,
             icon: const Icon(Icons.more_vert),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
             onSelected: (value) async {
               if (value == 'edit') {
                 await _showEditShiftDialog(context, shift, provider);
@@ -519,14 +669,14 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
                 await _showDeleteDialog(context, shift, provider);
               }
             },
-            itemBuilder: (context) => [
+            itemBuilder: (_) => [
               PopupMenuItem(
                 value: 'edit',
                 child: Row(
                   children: [
                     const Icon(Icons.edit, size: 20, color: Colors.blue),
                     const SizedBox(width: 8),
-                    Text(context.strings.editButton),
+                    Text(menuStrings.shiftEditMenuLabel),
                   ],
                 ),
               ),
@@ -534,9 +684,12 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
                 value: 'delete',
                 child: Row(
                   children: [
-                    const Icon(Icons.delete, size: 20, color: Colors.red),
+                    const Icon(Icons.delete_outline, size: 20, color: Colors.red),
                     const SizedBox(width: 8),
-                    Text(context.strings.deleteButton),
+                    Text(
+                      menuStrings.shiftDeleteMenuLabel,
+                      style: const TextStyle(color: Colors.red),
+                    ),
                   ],
                 ),
               ),
@@ -571,26 +724,53 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
     BuildContext context,
     RestaurantProvider provider,
   ) async {
-    final result = await showDialog<ShiftModel>(
+    final result = await showDialog<List<ShiftModel>>(
       context: context,
       builder: (context) => const AddShiftDialog(),
     );
-    if (result != null && context.mounted) {
-      final success = await provider.addShift(result);
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              success
-                  ? context.strings.shiftAddedFor(result.employeeName)
-                  : context.strings.errorAddingShift,
-            ),
-            backgroundColor: success
-                ? AppTheme.statusGreen
-                : AppTheme.statusRed,
-          ),
-        );
+    if (result != null && result.isNotEmpty && context.mounted) {
+      var ok = 0;
+      for (final shift in result) {
+        if (await provider.addShift(shift)) ok++;
       }
+      if (!context.mounted) return;
+      final total = result.length;
+      final allOk = ok == total;
+      final partial = ok > 0 && ok < total;
+      String message;
+      if (allOk) {
+        if (total == 1) {
+          final one = result.first;
+          message = one.openSlot
+              ? context.strings.shiftAddedOpenSlot
+              : context.strings.shiftAddedFor(one.employeeName);
+        } else {
+          message = context.strings.shiftBatchAddedSummary(ok, total);
+        }
+      } else if (partial) {
+        message = context.strings.shiftBatchAddedSummary(ok, total);
+        final detail = provider.errorMessage?.trim();
+        if (detail != null && detail.isNotEmpty) {
+          message = '$message\n$detail';
+        }
+      } else {
+        message = context.strings.errorAddingShift;
+        final detail = provider.errorMessage?.trim();
+        if (detail != null && detail.isNotEmpty) {
+          message = '$message\n$detail';
+        }
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          duration: Duration(seconds: message.contains('\n') ? 5 : 3),
+          backgroundColor: allOk
+              ? AppTheme.statusGreen
+              : partial
+                  ? Colors.orange
+                  : AppTheme.statusRed,
+        ),
+      );
     }
   }
 
@@ -599,12 +779,12 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
     ShiftModel shift,
     RestaurantProvider provider,
   ) async {
-    final result = await showDialog<ShiftModel>(
+    final result = await showDialog<List<ShiftModel>>(
       context: context,
       builder: (context) => AddShiftDialog(shiftToEdit: shift),
     );
-    if (result != null && context.mounted) {
-      final success = await provider.updateShift(result);
+    if (result != null && result.isNotEmpty && context.mounted) {
+      final success = await provider.updateShift(result.first);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -631,7 +811,11 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: Text(context.strings.confirmDelete),
-        content: Text(context.strings.confirmDeleteShift(shift.employeeName)),
+        content: Text(
+          shift.openSlot
+              ? context.strings.confirmDeleteOpenShift
+              : context.strings.confirmDeleteShift(shift.employeeName),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -651,13 +835,17 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
     if (confirmed == true && context.mounted) {
       final success = await provider.deleteShift(shift.id);
       if (context.mounted) {
+        var msg = success
+            ? context.strings.shiftDeleted
+            : context.strings.errorDeletingShift;
+        final detail = provider.errorMessage?.trim();
+        if (!success && detail != null && detail.isNotEmpty) {
+          msg = '$msg\n$detail';
+        }
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              success
-                  ? context.strings.shiftDeleted
-                  : context.strings.errorDeletingShift,
-            ),
+            content: Text(msg),
+            duration: Duration(seconds: msg.contains('\n') ? 5 : 3),
             backgroundColor: success
                 ? AppTheme.statusGreen
                 : AppTheme.statusRed,

@@ -84,8 +84,9 @@ class _AddEmployeeDialogState extends State<AddEmployeeDialog> {
                 ),
                 enabled: !isEditing, // Không cho sửa username khi đang edit
                 validator: (value) {
-                  final sanitized =
-                      value == null ? '' : InputSanitizer.sanitizeUsername(value);
+                  final sanitized = value == null
+                      ? ''
+                      : InputSanitizer.sanitizeUsername(value);
                   if (sanitized.isEmpty) {
                     return 'Vui lòng nhập tên đăng nhập';
                   }
