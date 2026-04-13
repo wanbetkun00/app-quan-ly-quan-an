@@ -1347,6 +1347,27 @@ class RestaurantProvider extends ChangeNotifier {
     }
   }
 
+  /// Xóa toàn bộ ca làm trên Firestore (collection `shifts`).
+  /// Trả về số ca đã xóa; nếu lỗi trả về -1.
+  Future<int> deleteAllShifts() async {
+    try {
+      final count = await _firestoreService.deleteAllShifts();
+      return count;
+    } catch (e, stackTrace) {
+      _errorHandler.handleError(
+        e,
+        stackTrace,
+        context: 'Lỗi khi xóa tất cả ca làm',
+        fallbackMessage: 'Lỗi khi xóa tất cả ca làm',
+        onMessage: (message) {
+          _errorMessage = message;
+          notifyListeners();
+        },
+      );
+      return -1;
+    }
+  }
+
   // Get shifts for employee
   Future<List<ShiftModel>> getShiftsForEmployee(String employeeId) async {
     try {

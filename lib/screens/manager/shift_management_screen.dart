@@ -22,6 +22,7 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
   String? _selectedEmployeeId;
   late final PageController _dayPageController;
   int _activeDayIndex = 0;
+  bool _isDeletingAll = false;
 
   @override
   void initState() {
@@ -80,6 +81,36 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
             icon: const Icon(Icons.refresh),
             tooltip: context.strings.refresh,
             onPressed: () => provider.refreshShifts(),
+          ),
+          PopupMenuButton<String>(
+            tooltip: 'Tùy chọn',
+            onSelected: (value) async {
+              if (value == 'delete_all') {
+                await _confirmAndDeleteAllShifts(context, provider);
+              }
+            },
+            itemBuilder: (_) => [
+              PopupMenuItem(
+                value: 'delete_all',
+                enabled: !_isDeletingAll,
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.delete_forever,
+                      size: 20,
+                      color: _isDeletingAll ? Colors.grey : Colors.red,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      _isDeletingAll ? 'Đang xóa...' : 'Xóa tất cả ca làm',
+                      style: TextStyle(
+                        color: _isDeletingAll ? Colors.grey : Colors.red,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
           IconButton(
             icon: const Icon(Icons.add),
@@ -355,17 +386,20 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
                         weekDays: weekDays,
                         selectedIndex: _activeDayIndex,
                         pageController: _dayPageController,
+                        onSelected: (i) {
+                          if (!mounted) return;
+                          setState(() => _activeDayIndex = i);
+                        },
                       ),
                       const SizedBox(height: 8),
                       Expanded(
-                        child: PageView.builder(
-                          controller: _dayPageController,
-                          onPageChanged: (i) {
-                            setState(() => _activeDayIndex = i);
-                          },
-                          itemCount: weekDays.length,
-                          itemBuilder: (context, index) {
-                            final date = weekDays[index];
+                        child: Builder(
+                          builder: (context) {
+                            final safeIndex = _activeDayIndex.clamp(
+                              0,
+                              weekDays.length - 1,
+                            );
+                            final date = weekDays[safeIndex];
                             final shifts = groupedShifts[date] ?? [];
                             return SingleChildScrollView(
                               physics: const AlwaysScrollableScrollPhysics(),
@@ -852,6 +886,57 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
           ),
         );
       }
+    }
+  }
+
+  Future<void> _confirmAndDeleteAllShifts(
+    BuildContext context,
+    RestaurantProvider provider,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Xóa tất cả ca làm'),
+        content: const Text(
+          'Thao tác này sẽ xóa vĩnh viễn TẤT CẢ ca làm trên Firebase.\n'
+          'Không thể khôi phục. Bạn chắc chắn muốn tiếp tục?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(context.strings.cancelButton),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text(
+              'Xóa hết',
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !context.mounted) return;
+    setState(() => _isDeletingAll = true);
+    try {
+      final count = await provider.deleteAllShifts();
+      if (!context.mounted) return;
+      final ok = count >= 0;
+      final msg = ok
+          ? 'Đã xóa $count ca làm.'
+          : (provider.errorMessage?.trim().isNotEmpty == true
+              ? provider.errorMessage!.trim()
+              : 'Xóa thất bại.');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(msg),
+          backgroundColor: ok ? AppTheme.statusGreen : AppTheme.statusRed,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isDeletingAll = false);
     }
   }
 }

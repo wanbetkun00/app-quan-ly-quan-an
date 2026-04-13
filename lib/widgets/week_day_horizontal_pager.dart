@@ -9,11 +9,13 @@ class WeekDayStrip extends StatelessWidget {
     required this.weekDays,
     required this.selectedIndex,
     required this.pageController,
+    this.onSelected,
   });
 
   final List<DateTime> weekDays;
   final int selectedIndex;
   final PageController pageController;
+  final ValueChanged<int>? onSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -38,11 +40,15 @@ class WeekDayStrip extends StatelessWidget {
               child: InkWell(
                 borderRadius: BorderRadius.circular(8),
                 onTap: () {
-                  pageController.animateToPage(
-                    i,
-                    duration: const Duration(milliseconds: 220),
-                    curve: Curves.easeOutCubic,
-                  );
+                  onSelected?.call(i);
+                  // Nếu màn hình cha không xử lý, fallback sang animate trực tiếp.
+                  if (onSelected == null && pageController.hasClients) {
+                    pageController.animateToPage(
+                      i,
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOutCubic,
+                    );
+                  }
                 },
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 8),

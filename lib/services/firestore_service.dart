@@ -754,12 +754,14 @@ class FirestoreService {
   }
 
   // Get shifts once
-  Future<List<ShiftModel>> getShifts() async {
+  Future<List<ShiftModel>> getShifts({bool forceServer = false}) async {
     try {
       final snapshot = await _firestore
           .collection(shiftsCollection)
           .orderBy('date', descending: false)
-          .get();
+          .get(forceServer
+              ? const GetOptions(source: Source.server)
+              : const GetOptions(source: Source.serverAndCache));
       return snapshot.docs
           .map((doc) => ShiftModel.fromFirestore(doc.id, doc.data()))
           .toList();
@@ -806,6 +808,7 @@ class FirestoreService {
   Future<List<ShiftModel>> getShiftsInRange(
     DateTime startDate,
     DateTime endDate,
+    {bool forceServer = false,}
   ) async {
     try {
       final startTimestamp = Timestamp.fromDate(startDate);
@@ -816,7 +819,9 @@ class FirestoreService {
           .where('date', isGreaterThanOrEqualTo: startTimestamp)
           .where('date', isLessThanOrEqualTo: endTimestamp)
           .orderBy('date', descending: false)
-          .get();
+          .get(forceServer
+              ? const GetOptions(source: Source.server)
+              : const GetOptions(source: Source.serverAndCache));
 
       return snapshot.docs
           .map((doc) => ShiftModel.fromFirestore(doc.id, doc.data()))
@@ -824,7 +829,7 @@ class FirestoreService {
     } catch (e) {
       // Fallback: get all and filter
       try {
-        final allShifts = await getShifts();
+        final allShifts = await getShifts(forceServer: forceServer);
         return allShifts.where((shift) {
           return shift.date.isAfter(
                 startDate.subtract(const Duration(days: 1)),
@@ -899,6 +904,34 @@ class FirestoreService {
     await _firestore.collection(shiftsCollection).doc(shiftId).delete();
   }
 
+  /// Xóa toàn bộ ca làm trong collection `shifts`.
+  /// Trả về số document đã xóa.
+  ///
+  /// Lưu ý: Firestore giới hạn 500 operations/batch, nên mặc định dùng 400 để dư an toàn.
+  Future<int> deleteAllShifts({int batchSize = 400}) async {
+    if (batchSize < 1) batchSize = 1;
+    if (batchSize > 450) batchSize = 450;
+
+    var deleted = 0;
+    while (true) {
+      final snap = await _firestore
+          .collection(shiftsCollection)
+          .limit(batchSize)
+          .get(const GetOptions(source: Source.server));
+
+      if (snap.docs.isEmpty) {
+        return deleted;
+      }
+
+      final batch = _firestore.batch();
+      for (final doc in snap.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+      deleted += snap.docs.length;
+    }
+  }
+
   // Check for overlapping shifts for an employee on a specific date
   /// Gồm ca gán tay và ca mở mà nhân viên đã đăng ký (theo [ShiftModel.involvesEmployee]).
   Future<List<ShiftModel>> checkOverlappingShifts(
@@ -911,11 +944,16 @@ class FirestoreService {
     try {
       final dateStart = DateTime(date.year, date.month, date.day);
       final dateEnd = DateTime(date.year, date.month, date.day, 23, 59, 59);
-      final shifts = await getShiftsInRange(dateStart, dateEnd);
+      final shifts = await getShiftsInRange(
+        dateStart,
+        dateEnd,
+        forceServer: true,
+      );
       return shifts.where((shift) {
         if (excludeShiftId != null && shift.id == excludeShiftId) {
           return false;
         }
+        if (shift.status == ShiftStatus.cancelled) return false;
         if (!shift.involvesEmployee(employeeId)) return false;
         return _isTimeOverlapping(
           startTime,
@@ -940,11 +978,16 @@ class FirestoreService {
     try {
       final dateStart = DateTime(date.year, date.month, date.day);
       final dateEnd = DateTime(date.year, date.month, date.day, 23, 59, 59);
-      final shifts = await getShiftsInRange(dateStart, dateEnd);
+      final shifts = await getShiftsInRange(
+        dateStart,
+        dateEnd,
+        forceServer: true,
+      );
       return shifts.where((shift) {
         if (excludeShiftId != null && shift.id == excludeShiftId) {
           return false;
         }
+        if (shift.status == ShiftStatus.cancelled) return false;
         return _isTimeOverlapping(
           startTime,
           endTime,
