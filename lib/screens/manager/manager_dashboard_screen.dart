@@ -13,6 +13,7 @@ import '../../widgets/role_guard.dart';
 import 'reports_screen.dart';
 import 'shift_management_screen.dart';
 import 'employee_management_screen.dart';
+import 'manager_ai_chat_screen.dart';
 
 class ManagerDashboardScreen extends StatelessWidget {
   const ManagerDashboardScreen({super.key});
@@ -52,6 +53,18 @@ class ManagerDashboardScreen extends StatelessWidget {
               ],
             ),
           ),
+          floatingActionButton: FloatingActionButton(
+            onPressed: () {
+              Navigator.of(context).push<void>(
+                MaterialPageRoute<void>(
+                  builder: (context) => const ManagerAiChatScreen(),
+                ),
+              );
+            },
+            tooltip: 'Trợ lý AI',
+            child: const Icon(Icons.smart_toy_outlined),
+          ),
+          floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
           body: TabBarView(
             children: [
               // 1. Dashboard Tab

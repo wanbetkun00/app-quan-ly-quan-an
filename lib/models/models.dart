@@ -6,3 +6,4 @@ export 'order_model.dart';
 export 'report_model.dart';
 export 'shift_model.dart';
 export 'employee_model.dart';
+export 'manager_chat_message.dart';
