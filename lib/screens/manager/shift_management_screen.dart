@@ -2,13 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/shift_model.dart';
 import '../../models/employee_model.dart';
-import '../../models/enums.dart';
 import '../../providers/restaurant_provider.dart';
 import '../../providers/app_strings.dart';
-import '../../providers/language_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/add_shift_dialog.dart';
-import '../../widgets/week_day_horizontal_pager.dart';
 
 class ShiftManagementScreen extends StatefulWidget {
   const ShiftManagementScreen({super.key});
@@ -20,21 +17,52 @@ class ShiftManagementScreen extends StatefulWidget {
 class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
   DateTime _selectedWeek = DateTime.now();
   String? _selectedEmployeeId;
-  late final PageController _dayPageController;
-  int _activeDayIndex = 0;
   bool _isDeletingAll = false;
+  final ScrollController _matrixHorizontalController = ScrollController();
+  static const double _slotColWidth = 140.0;
+  static const double _minDayColWidth = 120.0;
+  static const double _maxDayColWidth = 170.0;
 
   @override
   void initState() {
     super.initState();
-    _activeDayIndex = _defaultDayPageIndex();
-    _dayPageController = PageController(initialPage: _activeDayIndex);
   }
 
   @override
   void dispose() {
-    _dayPageController.dispose();
+    _matrixHorizontalController.dispose();
     super.dispose();
+  }
+
+  static final List<_ShiftSlotDef> _slotDefs = [
+    _ShiftSlotDef(
+      id: 'morning',
+      label: 'Sáng',
+      range: '6:30 - 11:30',
+      startHour: 6,
+      startMinute: 30,
+    ),
+    _ShiftSlotDef(
+      id: 'noon',
+      label: 'Trưa',
+      range: '11:30 - 17:30',
+      startHour: 11,
+      startMinute: 30,
+    ),
+    _ShiftSlotDef(
+      id: 'evening',
+      label: 'Chiều',
+      range: '17:30 - 23:30',
+      startHour: 17,
+      startMinute: 30,
+    ),
+  ];
+
+  String _slotIdForShift(ShiftModel shift) {
+    final minutes = shift.startTime.hour * 60 + shift.startTime.minute;
+    if (minutes < 11 * 60 + 30) return 'morning';
+    if (minutes < 17 * 60 + 30) return 'noon';
+    return 'evening';
   }
 
   List<DateTime> _weekDaysForSelected() {
@@ -45,27 +73,9 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
     );
   }
 
-  int _defaultDayPageIndex() {
-    final now = DateTime.now();
-    final days = _weekDaysForSelected();
-    for (var i = 0; i < days.length; i++) {
-      final d = days[i];
-      if (d.year == now.year && d.month == now.month && d.day == now.day) {
-        return i;
-      }
-    }
-    return 0;
-  }
-
   void _setWeekAndSyncDayPage(DateTime newWeek) {
     setState(() {
       _selectedWeek = newWeek;
-      _activeDayIndex = _defaultDayPageIndex();
-    });
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && _dayPageController.hasClients) {
-        _dayPageController.jumpToPage(_activeDayIndex);
-      }
     });
   }
 
@@ -75,7 +85,27 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(context.strings.shiftManagementTitle),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: AppTheme.primaryOrange.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                Icons.badge_outlined,
+                size: 18,
+                color: AppTheme.primaryOrange,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              context.strings.shiftManagementTitle,
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+          ],
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -367,54 +397,44 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
                           )
                           .toList();
 
-                final groupedShifts = <DateTime, List<ShiftModel>>{};
-                for (var shift in filteredShifts) {
-                  final date = DateTime(
-                    shift.date.year,
-                    shift.date.month,
-                    shift.date.day,
-                  );
-                  groupedShifts.putIfAbsent(date, () => []).add(shift);
-                }
+                return LayoutBuilder(
+                  builder: (context, constraints) {
+                    final availableWidth = (constraints.maxWidth - 16).clamp(
+                      0,
+                      double.infinity,
+                    );
+                    final dayColWidth = ((availableWidth - _slotColWidth) /
+                            weekDays.length)
+                        .clamp(_minDayColWidth, _maxDayColWidth)
+                        .toDouble();
+                    final totalWidth =
+                        _slotColWidth + (dayColWidth * weekDays.length);
 
-                return Padding(
-                  padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      WeekDayStrip(
-                        weekDays: weekDays,
-                        selectedIndex: _activeDayIndex,
-                        pageController: _dayPageController,
-                        onSelected: (i) {
-                          if (!mounted) return;
-                          setState(() => _activeDayIndex = i);
-                        },
-                      ),
-                      const SizedBox(height: 8),
-                      Expanded(
-                        child: Builder(
-                          builder: (context) {
-                            final safeIndex = _activeDayIndex.clamp(
-                              0,
-                              weekDays.length - 1,
-                            );
-                            final date = weekDays[safeIndex];
-                            final shifts = groupedShifts[date] ?? [];
-                            return SingleChildScrollView(
+                    return Column(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(8, 4, 8, 0),
+                          child: _buildStickyHorizontalScrollbar(totalWidth),
+                        ),
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(8, 6, 8, 0),
+                            child: SingleChildScrollView(
                               physics: const AlwaysScrollableScrollPhysics(),
                               padding: const EdgeInsets.only(bottom: 12),
-                              child: _buildDateSection(
-                                date,
-                                shifts,
+                              child: _buildShiftMatrix(
+                                context,
                                 provider,
+                                weekDays,
+                                filteredShifts,
+                                dayColWidth: dayColWidth,
                               ),
-                            );
-                          },
+                            ),
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
+                      ],
+                    );
+                  },
                 );
               },
             ),
@@ -424,314 +444,311 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
     );
   }
 
-  Widget _buildDateSection(
-    DateTime date,
-    List<ShiftModel> shifts,
+  Widget _buildShiftMatrix(
+    BuildContext context,
     RestaurantProvider provider,
-  ) {
-    final isToday =
-        date.year == DateTime.now().year &&
-        date.month == DateTime.now().month &&
-        date.day == DateTime.now().day;
+    List<DateTime> weekDays,
+    List<ShiftModel> shifts, {
+    required double dayColWidth,
+  }) {
+    final now = DateTime.now();
+
+    final matrix = <String, List<ShiftModel>>{};
+    for (final shift in shifts) {
+      final d = DateTime(shift.date.year, shift.date.month, shift.date.day);
+      final key = '${d.toIso8601String()}_${_slotIdForShift(shift)}';
+      matrix.putIfAbsent(key, () => []).add(shift);
+    }
 
     return Card(
-      margin: const EdgeInsets.fromLTRB(4, 0, 4, 8),
+      margin: const EdgeInsets.fromLTRB(2, 0, 2, 8),
+      child: SingleChildScrollView(
+          controller: _matrixHorizontalController,
+          scrollDirection: Axis.horizontal,
+          child: SizedBox(
+            width: _slotColWidth + (dayColWidth * weekDays.length),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    _buildMatrixHeaderCell(
+                      width: _slotColWidth,
+                      title: 'Ca làm',
+                      subtitle: 'Khung giờ',
+                    ),
+                    ...weekDays.map((day) {
+                      final isToday = day.year == now.year &&
+                          day.month == now.month &&
+                          day.day == now.day;
+                      return _buildMatrixHeaderCell(
+                        width: dayColWidth,
+                        title: _weekdayLabel(day.weekday),
+                        subtitle: '${day.day}/${day.month}',
+                        isToday: isToday,
+                      );
+                    }),
+                  ],
+                ),
+                const Divider(height: 1),
+                ..._slotDefs.map((slot) {
+                  return Column(
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildSlotLabelCell(_slotColWidth, slot),
+                          ...weekDays.map((day) {
+                            final d = DateTime(day.year, day.month, day.day);
+                            final key = '${d.toIso8601String()}_${slot.id}';
+                            final slotShifts = matrix[key] ?? [];
+                            final isToday = day.year == now.year &&
+                                day.month == now.month &&
+                                day.day == now.day;
+                            return _buildShiftStaffCell(
+                              context,
+                              provider: provider,
+                              width: dayColWidth,
+                              shifts: slotShifts,
+                              isTodayColumn: isToday,
+                            );
+                          }),
+                        ],
+                      ),
+                      const Divider(height: 1),
+                    ],
+                  );
+                }),
+              ],
+            ),
+          ),
+        ),
+    );
+  }
+
+  Widget _buildStickyHorizontalScrollbar(double contentWidth) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        color: Colors.grey.withValues(alpha: 0.08),
+        height: 14,
+        child: Scrollbar(
+          controller: _matrixHorizontalController,
+          thumbVisibility: true,
+          trackVisibility: true,
+          interactive: true,
+          child: SingleChildScrollView(
+            controller: _matrixHorizontalController,
+            scrollDirection: Axis.horizontal,
+            child: SizedBox(width: contentWidth, height: 1),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMatrixHeaderCell({
+    required double width,
+    required String title,
+    required String subtitle,
+    bool isToday = false,
+  }) {
+    return Container(
+      width: width,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      color: isToday
+          ? AppTheme.primaryOrange.withValues(alpha: 0.12)
+          : Colors.grey[100],
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: isToday
-                  ? AppTheme.primaryOrange.withValues(alpha: 0.1)
-                  : Colors.grey[100],
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(12),
-                topRight: Radius.circular(12),
-              ),
-            ),
-            child: Row(
-              children: [
-                Text(
-                  _formatDate(date),
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                    color: isToday ? AppTheme.primaryOrange : Colors.black87,
-                  ),
-                ),
-                if (isToday) ...[
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppTheme.primaryOrange,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      context.strings.today,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ],
-                const Spacer(),
-                Text(
-                  '${shifts.length} ${context.strings.shifts}',
-                  style: TextStyle(color: Colors.grey[600], fontSize: 14),
-                ),
-              ],
+          Text(
+            title,
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 12,
+              color: isToday ? AppTheme.primaryOrange : Colors.black87,
             ),
           ),
-          if (shifts.isEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 16),
-              child: Center(
-                child: Text(
-                  context.strings.noShifts,
-                  style: TextStyle(color: Colors.grey[600], fontSize: 15),
-                ),
-              ),
-            )
-          else
-            ...shifts.asMap().entries.map((entry) {
-              final i = entry.key;
-              final shift = entry.value;
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (i > 0) const Divider(height: 1),
-                  _buildShiftTile(context, shift, provider),
-                ],
-              );
-            }),
+          const SizedBox(height: 2),
+          Text(
+            subtitle,
+            style: TextStyle(fontSize: 11, color: Colors.grey[700]),
+          ),
         ],
       ),
     );
   }
 
-  Color _staffingDotColor(ShiftStaffingLevel level) {
-    switch (level) {
-      case ShiftStaffingLevel.deficit:
-        return Colors.red.shade600;
-      case ShiftStaffingLevel.almostFull:
-        return Colors.amber.shade700;
-      case ShiftStaffingLevel.full:
-        return Colors.green.shade600;
-      case ShiftStaffingLevel.na:
-        return Colors.grey;
-    }
-  }
-
-  String _staffingLabel(BuildContext context, ShiftModel shift) {
-    final s = context.strings;
-    switch (shift.staffingLevel) {
-      case ShiftStaffingLevel.full:
-        return s.staffingFullLabel;
-      case ShiftStaffingLevel.almostFull:
-        return s.staffingAlmostFull;
-      case ShiftStaffingLevel.deficit:
-        return s.staffingDeficit;
-      case ShiftStaffingLevel.na:
-        return '';
-    }
-  }
-
-  Widget _buildShiftTile(
-    BuildContext context,
-    ShiftModel shift,
-    RestaurantProvider provider,
-  ) {
-    Color statusColor;
-    String statusText;
-    IconData statusIcon;
-
-    switch (shift.status) {
-      case ShiftStatus.scheduled:
-        statusColor = AppTheme.statusYellow;
-        statusText = context.strings.shiftScheduled;
-        statusIcon = Icons.schedule;
-        break;
-      case ShiftStatus.completed:
-        statusColor = AppTheme.statusGreen;
-        statusText = context.strings.shiftCompleted;
-        statusIcon = Icons.check_circle;
-        break;
-      case ShiftStatus.cancelled:
-        statusColor = AppTheme.statusRed;
-        statusText = context.strings.shiftCancelled;
-        statusIcon = Icons.cancel;
-        break;
-    }
-
-    final openStaffingColor = shift.openSlot
-        ? _staffingDotColor(shift.staffingLevel)
-        : statusColor;
-    final openStaffingIcon = shift.openSlot ? Icons.groups_2 : statusIcon;
-
-    final menuStrings = AppStrings(
-      Provider.of<LanguageProvider>(context, listen: false).language,
-    );
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-      child: Row(
+  Widget _buildSlotLabelCell(double width, _ShiftSlotDef slot) {
+    return Container(
+      width: width,
+      padding: const EdgeInsets.all(8),
+      color: Colors.grey[50],
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: (shift.openSlot ? openStaffingColor : statusColor)
-                  .withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(
-              openStaffingIcon,
-              color: shift.openSlot ? openStaffingColor : statusColor,
-            ),
+          Text(
+            slot.label,
+            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        shift.openSlot
-                            ? '${context.strings.openShiftStoredEmployeeName} · ${shift.registeredCount}/${shift.maxEmployees}'
-                            : shift.employeeName,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 15,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: statusColor.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        statusText,
-                        style: TextStyle(
-                          color: statusColor,
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    Icon(Icons.access_time, size: 14, color: Colors.grey[600]),
-                    const SizedBox(width: 4),
-                    Flexible(
-                      child: Text(
-                        '${_formatTime(shift.startTime)} – ${_formatTime(shift.endTime)} (${shift.durationHours.toStringAsFixed(1)}h)',
-                        style: TextStyle(fontSize: 12, color: Colors.grey[700]),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-                if (shift.openSlot) ...[
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      Container(
-                        width: 10,
-                        height: 10,
-                        decoration: BoxDecoration(
-                          color: openStaffingColor,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          _staffingLabel(context, shift),
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: openStaffingColor,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-                if (shift.notes != null && shift.notes!.isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    shift.notes!,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[600],
-                      fontStyle: FontStyle.italic,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          PopupMenuButton<String>(
-            tooltip: menuStrings.shiftActionMenuTooltip,
-            icon: const Icon(Icons.more_vert),
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-            onSelected: (value) async {
-              if (value == 'edit') {
-                await _showEditShiftDialog(context, shift, provider);
-              } else if (value == 'delete') {
-                await _showDeleteDialog(context, shift, provider);
-              }
-            },
-            itemBuilder: (_) => [
-              PopupMenuItem(
-                value: 'edit',
-                child: Row(
-                  children: [
-                    const Icon(Icons.edit, size: 20, color: Colors.blue),
-                    const SizedBox(width: 8),
-                    Text(menuStrings.shiftEditMenuLabel),
-                  ],
-                ),
-              ),
-              PopupMenuItem(
-                value: 'delete',
-                child: Row(
-                  children: [
-                    const Icon(Icons.delete_outline, size: 20, color: Colors.red),
-                    const SizedBox(width: 8),
-                    Text(
-                      menuStrings.shiftDeleteMenuLabel,
-                      style: const TextStyle(color: Colors.red),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
+          const SizedBox(height: 2),
+          Text(slot.range, style: TextStyle(fontSize: 11, color: Colors.grey[700])),
         ],
       ),
     );
+  }
+
+  Widget _buildShiftStaffCell(
+    BuildContext context, {
+    required RestaurantProvider provider,
+    required double width,
+    required List<ShiftModel> shifts,
+    required bool isTodayColumn,
+  }) {
+    return Container(
+      width: width,
+      constraints: const BoxConstraints(minHeight: 92),
+      padding: const EdgeInsets.all(6),
+      decoration: BoxDecoration(
+        color: isTodayColumn
+            ? AppTheme.primaryOrange.withValues(alpha: 0.06)
+            : Colors.transparent,
+        border: isTodayColumn
+            ? Border(
+                left: BorderSide(
+                  color: AppTheme.primaryOrange.withValues(alpha: 0.25),
+                ),
+                right: BorderSide(
+                  color: AppTheme.primaryOrange.withValues(alpha: 0.25),
+                ),
+              )
+            : null,
+      ),
+      child: shifts.isEmpty
+          ? Center(
+              child: Text(
+                '—',
+                style: TextStyle(color: Colors.grey[500], fontSize: 16),
+              ),
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: shifts.map((s) {
+                final nameLabel = s.openSlot
+                    ? '${context.strings.openShiftStoredEmployeeName} (${s.registeredCount}/${s.maxEmployees})'
+                    : s.employeeName;
+                final timeLabel =
+                    '${s.startTime.hour.toString().padLeft(2, '0')}:${s.startTime.minute.toString().padLeft(2, '0')}'
+                    ' - '
+                    '${s.endTime.hour.toString().padLeft(2, '0')}:${s.endTime.minute.toString().padLeft(2, '0')}';
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: InkWell(
+                  borderRadius: BorderRadius.circular(8),
+                  onTap: () async {
+                    await _showEditShiftDialog(context, s, provider);
+                  },
+                  onLongPress: () async {
+                    final action = await showModalBottomSheet<String>(
+                      context: context,
+                      builder: (ctx) => SafeArea(
+                        child: Wrap(
+                          children: [
+                            ListTile(
+                              leading: const Icon(Icons.edit, color: Colors.blue),
+                              title: Text(context.strings.shiftEditMenuLabel),
+                              onTap: () => Navigator.pop(ctx, 'edit'),
+                            ),
+                            ListTile(
+                              leading: const Icon(
+                                Icons.delete_outline,
+                                color: Colors.red,
+                              ),
+                              title: Text(
+                                context.strings.deleteButton,
+                                style: const TextStyle(color: Colors.red),
+                              ),
+                              onTap: () => Navigator.pop(ctx, 'delete'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                    if (!context.mounted || action == null) return;
+                    if (action == 'delete') {
+                      await _showDeleteDialog(context, s, provider);
+                    }
+                  },
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: s.openSlot
+                            ? AppTheme.statusYellow.withValues(alpha: 0.18)
+                            : (isTodayColumn
+                                ? AppTheme.primaryOrange.withValues(alpha: 0.2)
+                                : AppTheme.primaryOrange.withValues(alpha: 0.12)),
+                        borderRadius: BorderRadius.circular(8),
+                        border: isTodayColumn
+                            ? Border.all(
+                                color: AppTheme.primaryOrange.withValues(alpha: 0.25),
+                              )
+                            : null,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            nameLabel,
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            timeLabel,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey[800],
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+    );
+  }
+
+  String _weekdayLabel(int weekday) {
+    switch (weekday) {
+      case DateTime.monday:
+        return 'T2';
+      case DateTime.tuesday:
+        return 'T3';
+      case DateTime.wednesday:
+        return 'T4';
+      case DateTime.thursday:
+        return 'T5';
+      case DateTime.friday:
+        return 'T6';
+      case DateTime.saturday:
+        return 'T7';
+      default:
+        return 'CN';
+    }
   }
 
   String _getWeekRangeText(DateTime date) {
@@ -748,10 +765,6 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
   String _formatDate(DateTime date) {
     final weekdays = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
     return '${weekdays[date.weekday % 7]}, ${date.day}/${date.month}/${date.year}';
-  }
-
-  String _formatTime(TimeOfDay time) {
-    return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
   }
 
   Future<void> _showAddShiftDialog(
@@ -939,4 +952,20 @@ class _ShiftManagementScreenState extends State<ShiftManagementScreen> {
       if (mounted) setState(() => _isDeletingAll = false);
     }
   }
+}
+
+class _ShiftSlotDef {
+  final String id;
+  final String label;
+  final String range;
+  final int startHour;
+  final int startMinute;
+
+  const _ShiftSlotDef({
+    required this.id,
+    required this.label,
+    required this.range,
+    required this.startHour,
+    required this.startMinute,
+  });
 }

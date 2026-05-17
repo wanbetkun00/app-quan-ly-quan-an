@@ -35,6 +35,14 @@ class _PaymentDialogState extends State<PaymentDialog> {
   final ErrorHandler _errorHandler = ErrorHandler();
 
   @override
+  void initState() {
+    super.initState();
+    // Tiền mặt mặc định đủ thanh toán để thu ngân có thể bấm ngay.
+    _receivedAmount = _total;
+    _receivedController.text = _total.toStringAsFixed(0);
+  }
+
+  @override
   void dispose() {
     _discountController.dispose();
     _receivedController.dispose();
@@ -108,8 +116,8 @@ class _PaymentDialogState extends State<PaymentDialog> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Orders List
-                    ...widget.orders.map((order) => _buildOrderCard(order)),
+                    // Orders merged timeline (all items in order-time sequence)
+                    _buildMergedOrdersCard(),
                     
                     const SizedBox(height: 20),
                     const Divider(),
@@ -203,7 +211,23 @@ class _PaymentDialogState extends State<PaymentDialog> {
     );
   }
 
-  Widget _buildOrderCard(OrderModel order) {
+  Widget _buildMergedOrdersCard() {
+    final sortedOrders = [...widget.orders]
+      ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+    final mergedItems = <_MergedPaymentItem>[];
+
+    for (final order in sortedOrders) {
+      for (final item in order.items) {
+        mergedItems.add(
+          _MergedPaymentItem(
+            orderId: order.id,
+            orderedAt: order.timestamp,
+            item: item,
+          ),
+        );
+      }
+    }
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
@@ -214,16 +238,16 @@ class _PaymentDialogState extends State<PaymentDialog> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'Đơn #${order.id.toString().substring(order.id.toString().length - 4)}',
-                  style: const TextStyle(
-                    fontSize: 14,
+                const Text(
+                  'Tất cả món đã gọi',
+                  style: TextStyle(
+                    fontSize: 15,
                     fontWeight: FontWeight.bold,
                     color: Colors.grey,
                   ),
                 ),
                 Text(
-                  DateFormat('HH:mm - dd/MM/yyyy').format(order.timestamp),
+                  '${widget.orders.length} đơn',
                   style: TextStyle(
                     fontSize: 12,
                     color: Colors.grey[600],
@@ -234,9 +258,10 @@ class _PaymentDialogState extends State<PaymentDialog> {
             const SizedBox(height: 8),
             const Divider(),
             const SizedBox(height: 8),
-            ...order.items.map((item) => Padding(
+            ...mergedItems.map((merged) => Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Container(
                         width: 32,
@@ -247,7 +272,7 @@ class _PaymentDialogState extends State<PaymentDialog> {
                         ),
                         child: Center(
                           child: Text(
-                            '${item.quantity}',
+                            '${merged.item.quantity}',
                             style: const TextStyle(
                               fontWeight: FontWeight.bold,
                               color: AppTheme.primaryOrange,
@@ -261,24 +286,31 @@ class _PaymentDialogState extends State<PaymentDialog> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              item.menuItem.name,
+                              merged.item.menuItem.name,
                               style: const TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
                             Text(
-                              '${item.menuItem.price.toVnd()} x ${item.quantity}',
+                              '${merged.item.menuItem.price.toVnd()} x ${merged.item.quantity}',
                               style: TextStyle(
                                 fontSize: 12,
                                 color: Colors.grey[600],
+                              ),
+                            ),
+                            Text(
+                              'Đơn #${merged.orderId.toString().substring(merged.orderId.toString().length - 4)} - ${DateFormat('HH:mm dd/MM').format(merged.orderedAt)}',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey[500],
                               ),
                             ),
                           ],
                         ),
                       ),
                       Text(
-                        (item.menuItem.price * item.quantity).toVnd(),
+                        (merged.item.menuItem.price * merged.item.quantity).toVnd(),
                         style: const TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
@@ -292,14 +324,14 @@ class _PaymentDialogState extends State<PaymentDialog> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Text(
-                  'Tổng đơn:',
+                  'Tổng bàn:',
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 Text(
-                  order.total.toVnd(),
+                  _subtotal.toVnd(),
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -834,4 +866,16 @@ class _PaymentDialogState extends State<PaymentDialog> {
 }
 
 enum PaymentMethod { cash, transfer }
+
+class _MergedPaymentItem {
+  final int orderId;
+  final DateTime orderedAt;
+  final OrderItem item;
+
+  _MergedPaymentItem({
+    required this.orderId,
+    required this.orderedAt,
+    required this.item,
+  });
+}
 

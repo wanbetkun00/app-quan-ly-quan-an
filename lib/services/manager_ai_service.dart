@@ -240,7 +240,7 @@ class ManagerAiContextService {
 
     // ── Menu, bàn, nhân viên, ca ──
     final menuSample = menu.take(40)
-        .map((m) => '${m.name} [${m.category.name}] ${m.price.toStringAsFixed(0)}đ')
+        .map((m) => '${m.name} (id: ${m.id}) [${m.category.name}] ${m.price.toStringAsFixed(0)}đ')
         .join('; ');
 
     final empLines = provider.employees
@@ -257,8 +257,12 @@ class ManagerAiContextService {
           ? 'Ca mở (${s.registeredCount}/${s.maxEmployees} đăng ký)'
           : s.employeeName;
       return '$d ${s.startTime.hour}:${s.startTime.minute.toString().padLeft(2, '0')}'
-          '-${s.endTime.hour}:${s.endTime.minute.toString().padLeft(2, '0')} $staff';
+          '-${s.endTime.hour}:${s.endTime.minute.toString().padLeft(2, '0')} $staff (id: ${s.id})';
     }).join('\n');
+
+    final tableLines = provider.tables
+        .map((t) => '${t.name} (id: ${t.id})')
+        .join(', ');
 
     return '''
 DỮ LIỆU NHÀ HÀNG (tự động cào từ Firebase lúc ${DateFormat('HH:mm dd/MM').format(now)})
@@ -290,7 +294,8 @@ ${menu.isEmpty ? 'Trống' : menuSample}
 Tổng: ${menu.length} (ăn: ${provider.foodItems}, uống: ${provider.drinkItems})
 
 ═══ BÀN ═══
-${provider.totalTables} bàn (trống: ${provider.availableTables}, có khách: ${provider.occupiedTables}, chờ thanh toán: ${provider.paymentPendingTables})
+${tableLines.isEmpty ? 'Chưa có' : tableLines}
+Tổng: ${provider.totalTables} bàn (trống: ${provider.availableTables}, có khách: ${provider.occupiedTables}, chờ thanh toán: ${provider.paymentPendingTables})
 
 ═══ NHÂN VIÊN ═══
 ${empLines.isEmpty ? 'Chưa có' : empLines}

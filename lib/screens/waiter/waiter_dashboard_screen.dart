@@ -1,9 +1,11 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/models.dart';
 import '../../providers/restaurant_provider.dart';
 import '../../providers/language_provider.dart';
 import '../../providers/app_strings.dart';
+import '../../providers/auth_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/ordering_sheet.dart';
 import '../../widgets/animated_card.dart';
@@ -25,6 +27,7 @@ class _WaiterDashboardScreenState extends State<WaiterDashboardScreen> {
   Widget build(BuildContext context) {
     final provider = Provider.of<RestaurantProvider>(context);
     final langProvider = Provider.of<LanguageProvider>(context);
+    final auth = Provider.of<AuthProvider>(context, listen: false);
 
     // Filter tables by status
     var filteredTables = provider.tables;
@@ -149,26 +152,60 @@ class _WaiterDashboardScreenState extends State<WaiterDashboardScreen> {
                       ],
                     ),
                   )
-                : RefreshIndicator(
-                    onRefresh: () => provider.refreshData(),
-                    child: GridView.builder(
-                      padding: const EdgeInsets.all(12),
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 3,
-                            crossAxisSpacing: 12,
-                            mainAxisSpacing: 12,
-                            childAspectRatio: 0.75,
-                          ),
-                      itemCount: filteredTables.length,
-                      itemBuilder: (context, index) {
-                        final table = filteredTables[index];
-                        return AnimatedCard(
-                          delay: Duration(milliseconds: index * 50),
-                          child: _buildTableCard(context, table, provider),
-                        );
-                      },
-                    ),
+                : LayoutBuilder(
+                    builder: (context, constraints) {
+                      final width = constraints.maxWidth;
+                      int crossAxisCount;
+                      if (width >= 1400) {
+                        crossAxisCount = 8;
+                      } else if (width >= 1200) {
+                        crossAxisCount = 7;
+                      } else if (width >= 1000) {
+                        crossAxisCount = 6;
+                      } else if (width >= 800) {
+                        crossAxisCount = 5;
+                      } else if (width >= 600) {
+                        crossAxisCount = 4;
+                      } else {
+                        crossAxisCount = 3;
+                      }
+
+                      // Nếu đang chạy trên Web/Desktop với tài khoản Quản lý,
+                      // chúng ta hiển thị nhiều cột hơn để ô bàn nhỏ lại giống POS.
+                      final isManagerWeb =
+                          !_isMobilePlatform && auth.role == UserRole.manager;
+                      final effectiveChildAspectRatio =
+                          isManagerWeb ? 1.3 : 0.95;
+                      if (isManagerWeb) {
+                        crossAxisCount = (crossAxisCount + 1).clamp(4, 8);
+                      }
+
+                      return RefreshIndicator(
+                        onRefresh: () => provider.refreshData(),
+                        child: GridView.builder(
+                          padding: const EdgeInsets.all(8),
+                          gridDelegate:
+                              SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: crossAxisCount,
+                                crossAxisSpacing: 8,
+                                mainAxisSpacing: 8,
+                                childAspectRatio: effectiveChildAspectRatio,
+                              ),
+                          itemCount: filteredTables.length,
+                          itemBuilder: (context, index) {
+                            final table = filteredTables[index];
+                            return AnimatedCard(
+                              delay: Duration(milliseconds: index * 40),
+                              child: _buildTableCard(
+                                context,
+                                table,
+                                provider,
+                              ),
+                            );
+                          },
+                        ),
+                      );
+                    },
                   ),
           ),
         ],
@@ -232,8 +269,8 @@ class _WaiterDashboardScreenState extends State<WaiterDashboardScreen> {
 
     return Material(
       color: Colors.white,
-      elevation: 2,
-      borderRadius: BorderRadius.circular(16),
+      elevation: 1.5,
+      borderRadius: BorderRadius.circular(10),
       child: InkWell(
         onTap: isAvailable || table.status == TableStatus.paymentPending
             ? () {
@@ -242,14 +279,14 @@ class _WaiterDashboardScreenState extends State<WaiterDashboardScreen> {
             : () {
                 _showTableDetails(context, table, currentOrder, provider);
               },
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(10),
         child: Container(
           decoration: BoxDecoration(
-            border: Border.all(color: statusColor, width: 3),
-            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: statusColor, width: 2),
+            borderRadius: BorderRadius.circular(10),
           ),
           child: Padding(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               mainAxisSize: MainAxisSize.min,
@@ -257,27 +294,27 @@ class _WaiterDashboardScreenState extends State<WaiterDashboardScreen> {
                 // Table icon
                 Icon(
                   isAvailable ? Icons.table_restaurant : Icons.restaurant,
-                  size: 36,
+                  size: 24,
                   color: statusColor,
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 2),
                 // Table name
                 Text(
                   table.name,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                     color: AppTheme.darkGreyText,
-                    fontSize: 14,
+                    fontSize: 12,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 2),
                 // Status badge
                 Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 3,
+                    horizontal: 4,
+                    vertical: 2,
                   ),
                   decoration: BoxDecoration(
                     color: statusColor.withValues(alpha: 0.1),
@@ -287,7 +324,7 @@ class _WaiterDashboardScreenState extends State<WaiterDashboardScreen> {
                     _getStatusText(context, table.status),
                     style: TextStyle(
                       color: statusColor,
-                      fontSize: 9,
+                      fontSize: 8,
                       fontWeight: FontWeight.bold,
                     ),
                     maxLines: 1,
@@ -296,7 +333,7 @@ class _WaiterDashboardScreenState extends State<WaiterDashboardScreen> {
                 ),
                 // Order info if exists
                 if (currentOrder != null) ...[
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 4),
                   Container(
                     padding: const EdgeInsets.all(4),
                     decoration: BoxDecoration(
@@ -309,7 +346,7 @@ class _WaiterDashboardScreenState extends State<WaiterDashboardScreen> {
                         Text(
                           'Đơn #${currentOrder.id.toString().substring(currentOrder.id.toString().length - 4)}',
                           style: const TextStyle(
-                            fontSize: 9,
+                            fontSize: 8,
                             fontWeight: FontWeight.bold,
                             color: Colors.blue,
                           ),
@@ -319,7 +356,7 @@ class _WaiterDashboardScreenState extends State<WaiterDashboardScreen> {
                         Text(
                           _getOrderStatusText(context, currentOrder.status),
                           style: TextStyle(
-                            fontSize: 8,
+                            fontSize: 7,
                             color: Colors.grey[600],
                           ),
                           maxLines: 1,
@@ -362,11 +399,30 @@ class _WaiterDashboardScreenState extends State<WaiterDashboardScreen> {
   }
 
   void _showOrderingSheet(BuildContext context, TableModel table) {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final isManagerWebDesktop = !_isMobilePlatform && auth.role == UserRole.manager;
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => OrderingSheet(tableId: table.id),
+      builder: (ctx) {
+        final sheet = OrderingSheet(tableId: table.id);
+        if (!isManagerWebDesktop) return sheet;
+
+        final screenWidth = MediaQuery.of(ctx).size.width;
+        final targetWidth = screenWidth * 0.96;
+
+        return Align(
+          alignment: Alignment.bottomCenter,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: targetWidth.clamp(980.0, 1400.0),
+            ),
+            child: sheet,
+          ),
+        );
+      },
     );
   }
 
@@ -667,6 +723,12 @@ class _WaiterDashboardScreenState extends State<WaiterDashboardScreen> {
         ),
       ),
     );
+  }
+
+  bool get _isMobilePlatform {
+    if (kIsWeb) return false;
+    return defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS;
   }
 
   Color _getOrderStatusColor(OrderStatus status) {

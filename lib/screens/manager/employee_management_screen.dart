@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/employee_model.dart';
 import '../../models/enums.dart';
+import '../../providers/app_strings.dart';
 import '../../providers/restaurant_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/add_employee_dialog.dart';
@@ -18,7 +19,27 @@ class EmployeeManagementScreen extends StatelessWidget {
       allowedRoles: const [UserRole.manager],
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Quản lý tài khoản nhân viên'),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryOrange.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  Icons.groups_outlined,
+                  size: 18,
+                  color: AppTheme.primaryOrange,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                context.strings.mgrEmployeeAccountTitle,
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+            ],
+          ),
           actions: [
             IconButton(
               icon: const Icon(Icons.add),

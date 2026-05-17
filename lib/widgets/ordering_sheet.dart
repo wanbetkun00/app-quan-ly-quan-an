@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
 import '../models/models.dart';
 import '../providers/restaurant_provider.dart';
@@ -22,6 +23,7 @@ class _OrderingSheetState extends State<OrderingSheet>
   List<OrderItem> draftItems = [];
   late TabController _tabController;
   String _searchQuery = '';
+  bool _isSubmitting = false;
 
   @override
   void initState() {
@@ -76,6 +78,12 @@ class _OrderingSheetState extends State<OrderingSheet>
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<RestaurantProvider>(context, listen: false);
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final isMobilePlatform = kIsWeb
+        ? false
+        : (defaultTargetPlatform == TargetPlatform.android ||
+            defaultTargetPlatform == TargetPlatform.iOS);
+    final isManagerWebDesktop = auth.role == UserRole.manager && !isMobilePlatform;
     final foodMenu = provider.menu
         .where((m) => m.category == MenuCategory.food)
         .toList();
@@ -106,7 +114,7 @@ class _OrderingSheetState extends State<OrderingSheet>
                 ),
               ),
 
-              // Header
+              // Header (full width)
               Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Row(
@@ -138,83 +146,200 @@ class _OrderingSheetState extends State<OrderingSheet>
                 ),
               ),
 
-              // Search bar
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: TextField(
-                  decoration: InputDecoration(
-                    hintText: 'Tìm kiếm món ăn...',
-                    prefixIcon: const Icon(Icons.search),
-                    suffixIcon: _searchQuery.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(Icons.clear),
-                            onPressed: () {
-                              setState(() {
-                                _searchQuery = '';
-                              });
-                            },
-                          )
-                        : null,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    filled: true,
-                    fillColor: AppTheme.lightGreyBg,
-                  ),
-                  onChanged: (value) {
-                    setState(() {
-                      _searchQuery = InputSanitizer.sanitizeSearchQuery(value);
-                    });
-                  },
-                ),
-              ),
-
-              const SizedBox(height: 8),
-
-              // Tabs
-              TabBar(
-                controller: _tabController,
-                labelColor: AppTheme.primaryOrange,
-                unselectedLabelColor: Colors.grey,
-                indicatorColor: AppTheme.primaryOrange,
-                indicatorWeight: 3,
-                tabs: [
-                  Tab(
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.restaurant, size: 18),
-                        const SizedBox(width: 8),
-                        Text(context.strings.tabFood),
-                      ],
-                    ),
-                  ),
-                  Tab(
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.local_drink, size: 18),
-                        const SizedBox(width: 8),
-                        Text(context.strings.tabDrinks),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-
-              // Menu content
+              // Body: manager web desktop -> layout ngang (menu bên trái, order bên phải)
               Expanded(
-                child: TabBarView(
-                  controller: _tabController,
-                  children: [
-                    _buildMenuGrid(foodMenu, controller),
-                    _buildMenuGrid(drinkMenu, controller),
-                  ],
-                ),
+                child: isManagerWebDesktop
+                    ? Row(
+                        children: [
+                          // Left panel: search + tabs + menu grid
+                          Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.only(left: 16.0, right: 8),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 0),
+                                    child: TextField(
+                                      decoration: InputDecoration(
+                                        hintText: 'Tìm kiếm món ăn...',
+                                        prefixIcon: const Icon(Icons.search),
+                                        suffixIcon: _searchQuery.isNotEmpty
+                                            ? IconButton(
+                                                icon: const Icon(Icons.clear),
+                                                onPressed: () {
+                                                  setState(() {
+                                                    _searchQuery = '';
+                                                  });
+                                                },
+                                              )
+                                            : null,
+                                        border: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(12),
+                                        ),
+                                        filled: true,
+                                        fillColor: AppTheme.lightGreyBg,
+                                      ),
+                                      onChanged: (value) {
+                                        setState(() {
+                                          _searchQuery =
+                                              InputSanitizer.sanitizeSearchQuery(value);
+                                        });
+                                      },
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  TabBar(
+                                    controller: _tabController,
+                                    labelColor: AppTheme.primaryOrange,
+                                    unselectedLabelColor: Colors.grey,
+                                    indicatorColor: AppTheme.primaryOrange,
+                                    indicatorWeight: 3,
+                                    tabs: [
+                                      Tab(
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const Icon(Icons.restaurant, size: 18),
+                                            const SizedBox(width: 8),
+                                            Text(context.strings.tabFood),
+                                          ],
+                                        ),
+                                      ),
+                                      Tab(
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const Icon(Icons.local_drink, size: 18),
+                                            const SizedBox(width: 8),
+                                            Text(context.strings.tabDrinks),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Expanded(
+                                    child: TabBarView(
+                                      controller: _tabController,
+                                      children: [
+                                        _buildMenuGrid(
+                                          foodMenu,
+                                          controller,
+                                          isManagerWebDesktop:
+                                              isManagerWebDesktop,
+                                        ),
+                                        _buildMenuGrid(
+                                          drinkMenu,
+                                          controller,
+                                          isManagerWebDesktop:
+                                              isManagerWebDesktop,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          // Right panel: order summary
+                          SizedBox(
+                            width: 360,
+                            child: Padding(
+                              padding: const EdgeInsets.only(right: 16.0),
+                              child: _buildOrderSummary(
+                                context,
+                                provider,
+                                horizontalLayout: true,
+                              ),
+                            ),
+                          ),
+                        ],
+                      )
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: TextField(
+                              decoration: InputDecoration(
+                                hintText: 'Tìm kiếm món ăn...',
+                                prefixIcon: const Icon(Icons.search),
+                                suffixIcon: _searchQuery.isNotEmpty
+                                    ? IconButton(
+                                        icon: const Icon(Icons.clear),
+                                        onPressed: () {
+                                          setState(() {
+                                            _searchQuery = '';
+                                          });
+                                        },
+                                      )
+                                    : null,
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                filled: true,
+                                fillColor: AppTheme.lightGreyBg,
+                              ),
+                              onChanged: (value) {
+                                setState(() {
+                                  _searchQuery =
+                                      InputSanitizer.sanitizeSearchQuery(value);
+                                });
+                              },
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          TabBar(
+                            controller: _tabController,
+                            labelColor: AppTheme.primaryOrange,
+                            unselectedLabelColor: Colors.grey,
+                            indicatorColor: AppTheme.primaryOrange,
+                            indicatorWeight: 3,
+                            tabs: [
+                              Tab(
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.restaurant, size: 18),
+                                    const SizedBox(width: 8),
+                                    Text(context.strings.tabFood),
+                                  ],
+                                ),
+                              ),
+                              Tab(
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.local_drink, size: 18),
+                                    const SizedBox(width: 8),
+                                    Text(context.strings.tabDrinks),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          Expanded(
+                            child: TabBarView(
+                              controller: _tabController,
+                              children: [
+                                _buildMenuGrid(
+                                  foodMenu,
+                                  controller,
+                                  isManagerWebDesktop: isManagerWebDesktop,
+                                ),
+                                _buildMenuGrid(
+                                  drinkMenu,
+                                  controller,
+                                  isManagerWebDesktop: isManagerWebDesktop,
+                                ),
+                              ],
+                            ),
+                          ),
+                          _buildOrderSummary(context, provider),
+                        ],
+                      ),
               ),
-
-              // Order summary
-              _buildOrderSummary(context, provider),
             ],
           ),
         );
@@ -222,7 +347,11 @@ class _OrderingSheetState extends State<OrderingSheet>
     );
   }
 
-  Widget _buildMenuGrid(List<MenuItem> items, ScrollController controller) {
+  Widget _buildMenuGrid(
+    List<MenuItem> items,
+    ScrollController controller, {
+    required bool isManagerWebDesktop,
+  }) {
     // Filter by search query
     final filteredItems = _searchQuery.isEmpty
         ? items
@@ -253,9 +382,9 @@ class _OrderingSheetState extends State<OrderingSheet>
     return GridView.builder(
       controller: controller,
       padding: const EdgeInsets.all(16),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
-        childAspectRatio: 0.75,
+        childAspectRatio: isManagerWebDesktop ? 0.70 : 0.72,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
       ),
@@ -267,12 +396,20 @@ class _OrderingSheetState extends State<OrderingSheet>
           orElse: () => OrderItem(menuItem: item, quantity: 0),
         );
 
-        return _buildMenuItemCard(item, draftItem.quantity);
+        return _buildMenuItemCard(
+          item,
+          draftItem.quantity,
+          isManagerWebDesktop: isManagerWebDesktop,
+        );
       },
     );
   }
 
-  Widget _buildMenuItemCard(MenuItem item, int quantity) {
+  Widget _buildMenuItemCard(
+    MenuItem item,
+    int quantity, {
+    required bool isManagerWebDesktop,
+  }) {
     return Material(
       color: Colors.white,
       borderRadius: BorderRadius.circular(12),
@@ -330,31 +467,41 @@ class _OrderingSheetState extends State<OrderingSheet>
               ),
               // Info
               Expanded(
-                flex: 2,
+                flex: 3,
                 child: Padding(
                   padding: const EdgeInsets.all(8),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        item.name,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13,
+                      // Tên món co dãn theo không gian còn lại; tự ellipsis nếu
+                      // dài, không đẩy giá tràn ra ngoài card.
+                      Expanded(
+                        child: Text(
+                          item.name,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12.5,
+                            height: 1.2,
+                          ),
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
                       ),
+                      const SizedBox(height: 4),
+                      // Giá nằm cố định ở đáy ô.
                       Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            item.price.toVnd(),
-                            style: TextStyle(
-                              color: AppTheme.primaryOrange,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
+                          Expanded(
+                            child: Text(
+                              item.price.toVnd(),
+                              style: TextStyle(
+                                color: AppTheme.primaryOrange,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 11,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              softWrap: false,
                             ),
                           ),
                           if (quantity > 0)
@@ -372,7 +519,7 @@ class _OrderingSheetState extends State<OrderingSheet>
                                 style: const TextStyle(
                                   color: Colors.white,
                                   fontWeight: FontWeight.bold,
-                                  fontSize: 12,
+                                  fontSize: 11,
                                 ),
                               ),
                             ),
@@ -398,9 +545,14 @@ class _OrderingSheetState extends State<OrderingSheet>
     );
   }
 
-  Widget _buildOrderSummary(BuildContext context, RestaurantProvider provider) {
+  Widget _buildOrderSummary(
+    BuildContext context,
+    RestaurantProvider provider, {
+    bool horizontalLayout = false,
+  }) {
+    final padding = horizontalLayout ? const EdgeInsets.all(12) : const EdgeInsets.all(16);
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: padding,
       decoration: BoxDecoration(
         color: Colors.white,
         boxShadow: [
@@ -412,113 +564,132 @@ class _OrderingSheetState extends State<OrderingSheet>
         ],
       ),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisSize: horizontalLayout ? MainAxisSize.max : MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (draftItems.isNotEmpty) ...[
-            Container(
-              constraints: const BoxConstraints(maxHeight: 150),
-              child: ListView.separated(
-                shrinkWrap: true,
-                itemCount: draftItems.length,
-                separatorBuilder: (_, __) => const Divider(height: 1),
-                itemBuilder: (ctx, index) {
-                  final item = draftItems[index];
-                  return Dismissible(
-                    key: Key('${item.menuItem.id}_$index'),
-                    direction: DismissDirection.endToStart,
-                    background: Container(
-                      alignment: Alignment.centerRight,
-                      padding: const EdgeInsets.only(right: 16),
-                      color: Colors.red,
-                      child: const Icon(Icons.delete, color: Colors.white),
-                    ),
-                    onDismissed: (_) {
-                      setState(() {
-                        draftItems.removeAt(index);
-                      });
+          Expanded(
+            child: draftItems.isNotEmpty
+                ? ListView.separated(
+                    itemCount: draftItems.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (ctx, index) {
+                      final item = draftItems[index];
+                      return Dismissible(
+                        key: Key('${item.menuItem.id}_$index'),
+                        direction: DismissDirection.endToStart,
+                        background: Container(
+                          alignment: Alignment.centerRight,
+                          padding: const EdgeInsets.only(right: 16),
+                          color: Colors.red,
+                          child: const Icon(Icons.delete, color: Colors.white),
+                        ),
+                        onDismissed: (_) {
+                          setState(() {
+                            draftItems.removeAt(index);
+                          });
+                        },
+                        child: ListTile(
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          leading: Container(
+                            width: 36,
+                            height: 36,
+                            decoration: BoxDecoration(
+                              color:
+                                  AppTheme.primaryOrange.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Center(
+                              child: Text(
+                                '${item.quantity}',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: AppTheme.primaryOrange,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                          ),
+                          title: Text(
+                            item.menuItem.name,
+                            style: const TextStyle(fontWeight: FontWeight.w500),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          subtitle: Text(
+                            '${item.menuItem.price.toVnd()} x ${item.quantity}',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey[600],
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                (item.menuItem.price * item.quantity).toVnd(),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.remove_circle_outline,
+                                  size: 18,
+                                ),
+                                color: Colors.red,
+                                onPressed: () => _removeFromDraft(index),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
                     },
-                    child: ListTile(
-                      dense: true,
-                      contentPadding: EdgeInsets.zero,
-                      leading: Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: AppTheme.primaryOrange.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Center(
-                          child: Text(
-                            '${item.quantity}',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: AppTheme.primaryOrange,
-                            ),
-                          ),
-                        ),
-                      ),
-                      title: Text(
-                        item.menuItem.name,
-                        style: const TextStyle(fontWeight: FontWeight.w500),
-                      ),
-                      subtitle: Text(
-                        '${item.menuItem.price.toVnd()} x ${item.quantity}',
-                        style: TextStyle(fontSize: 11, color: Colors.grey[600]),
-                      ),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            (item.menuItem.price * item.quantity).toVnd(),
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          IconButton(
-                            icon: const Icon(
-                              Icons.remove_circle_outline,
-                              size: 20,
-                            ),
-                            color: Colors.red,
-                            onPressed: () => _removeFromDraft(index),
-                          ),
-                        ],
+                  )
+                : Center(
+                    child: Text(
+                      'Chưa chọn món',
+                      style: TextStyle(
+                        color: Colors.grey[600],
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
-                  );
-                },
-              ),
-            ),
-            const Divider(),
+                  ),
+          ),
+          if (draftItems.isNotEmpty) const Divider(),
+          if (draftItems.isNotEmpty)
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
                   context.strings.totalLabel,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    fontSize: 18,
+                    fontSize: horizontalLayout ? 16 : 18,
                   ),
                 ),
                 Text(
                   _draftTotal.toVnd(),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    fontSize: 20,
+                    fontSize: horizontalLayout ? 18 : 20,
                     color: AppTheme.primaryOrange,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 16),
-          ],
+          SizedBox(height: horizontalLayout ? 10 : 16),
           ElevatedButton(
-            onPressed: draftItems.isEmpty
+            onPressed: draftItems.isEmpty || _isSubmitting
                 ? null
                 : () async {
+                    if (_isSubmitting) return;
+                    setState(() => _isSubmitting = true);
                     final authProvider = Provider.of<AuthProvider>(
                       context,
                       listen: false,
@@ -539,14 +710,15 @@ class _OrderingSheetState extends State<OrderingSheet>
                       employeeId: authProvider.employeeId,
                     );
                     if (context.mounted) {
+                      setState(() => _isSubmitting = false);
                       Navigator.pop(context);
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: Text(
                             success
                                 ? (hadOpenOrder
-                                      ? 'Đã thêm món vào hóa đơn hiện tại'
-                                      : context.strings.orderSentSnack)
+                                    ? 'Đã thêm món vào hóa đơn hiện tại'
+                                    : context.strings.orderSentSnack)
                                 : 'Lỗi khi gửi đơn hàng. Vui lòng thử lại.',
                           ),
                           backgroundColor: success
@@ -570,12 +742,26 @@ class _OrderingSheetState extends State<OrderingSheet>
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.send),
+                _isSubmitting
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Colors.white,
+                          ),
+                        ),
+                      )
+                    : const Icon(Icons.send),
                 const SizedBox(width: 8),
-                Text(context.strings.sendToKitchenButton),
+                Text(
+                  _isSubmitting ? 'Đang gửi...' : context.strings.sendToKitchenButton,
+                ),
               ],
             ),
           ),
+          SizedBox(height: horizontalLayout ? 6 : 0),
         ],
       ),
     );

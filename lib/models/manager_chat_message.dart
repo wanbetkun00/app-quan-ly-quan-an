@@ -2,17 +2,20 @@ class ManagerChatMessage {
   final String role; // 'user' | 'model'
   final String text;
   final DateTime at;
+  final List<String> completedActionKeys;
 
   ManagerChatMessage({
     required this.role,
     required this.text,
     required this.at,
-  });
+    List<String>? completedActionKeys,
+  }) : completedActionKeys = completedActionKeys ?? const <String>[];
 
   Map<String, dynamic> toJson() => {
         'role': role,
         'text': text,
         'at': at.toIso8601String(),
+        'completedActionKeys': completedActionKeys,
       };
 
   factory ManagerChatMessage.fromJson(Map<String, dynamic> json) {
@@ -20,6 +23,10 @@ class ManagerChatMessage {
       role: json['role'] as String,
       text: json['text'] as String,
       at: DateTime.tryParse(json['at'] as String? ?? '') ?? DateTime.now(),
+      completedActionKeys: (json['completedActionKeys'] as List?)
+              ?.whereType<String>()
+              .toList() ??
+          const <String>[],
     );
   }
 }

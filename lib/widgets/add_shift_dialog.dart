@@ -1,7 +1,6 @@
 import 'dart:math' show min;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../models/shift_model.dart';
 import '../models/employee_model.dart';
@@ -12,25 +11,24 @@ import '../providers/language_provider.dart';
 import '../theme/app_theme.dart';
 import '../services/error_handler.dart';
 import '../utils/input_sanitizer.dart';
-import '../utils/shift_day_part.dart';
 
 /// Khung giờ mặc định: Sáng / Chiều / Tối (nhận diện bằng icon + màu).
 enum _ShiftTimeSlot {
   morning(
-    TimeOfDay(hour: 7, minute: 0),
-    TimeOfDay(hour: 12, minute: 0),
+    TimeOfDay(hour: 6, minute: 30),
+    TimeOfDay(hour: 11, minute: 30),
     Icons.wb_sunny_rounded,
     0xFFE65100,
   ),
   afternoon(
-    TimeOfDay(hour: 13, minute: 0),
-    TimeOfDay(hour: 18, minute: 0),
+    TimeOfDay(hour: 11, minute: 30),
+    TimeOfDay(hour: 17, minute: 30),
     Icons.wb_cloudy_rounded,
     0xFF1E88E5,
   ),
   evening(
-    TimeOfDay(hour: 18, minute: 0),
-    TimeOfDay(hour: 23, minute: 0),
+    TimeOfDay(hour: 17, minute: 30),
+    TimeOfDay(hour: 23, minute: 30),
     Icons.nights_stay_rounded,
     0xFF4527A0,
   );
@@ -83,13 +81,9 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
   DateTime _selectedDate = DateTime.now();
   TimeOfDay _startTime = const TimeOfDay(hour: 7, minute: 0);
   TimeOfDay _endTime = const TimeOfDay(hour: 12, minute: 0);
-  ShiftStatus _status = ShiftStatus.scheduled;
   final _notesController = TextEditingController();
-  final _maxEmployeesController = TextEditingController(text: '3');
   final ErrorHandler _errorHandler = ErrorHandler();
-
-  /// Ca mở đăng ký vs gán một nhân viên (chỉ đổi khi tạo mới).
-  bool _isOpenSlot = true;
+  final Map<String, String> _employeeNamesById = {};
 
   /// Thứ Hai của tuần đang chọn (chỉ giao diện tạo mới theo tuần).
   late DateTime _batchWeekMonday;
@@ -109,22 +103,12 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
       _selectedDate = shift.date;
       _startTime = shift.startTime;
       _endTime = shift.endTime;
-      _status = shift.status;
       _notesController.text = shift.notes ?? '';
-      if (shift.openSlot) {
-        _isOpenSlot = true;
-        _maxEmployeesController.text = '${shift.maxEmployees}';
-        _selectedEmployeeId = null;
-      } else {
-        _isOpenSlot = false;
-        _selectedEmployeeId = shift.employeeId;
-      }
+      _selectedEmployeeId = shift.openSlot ? null : shift.employeeId;
       _batchSelectedWeekdays
         ..clear()
         ..add(anchor.weekday);
     } else {
-      _isOpenSlot = true;
-      _maxEmployeesController.text = '3';
       _batchSelectedWeekdays
         ..clear()
         ..addAll({1, 2, 3, 4, 5});
@@ -135,7 +119,6 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
   @override
   void dispose() {
     _notesController.dispose();
-    _maxEmployeesController.dispose();
     super.dispose();
   }
 
@@ -458,7 +441,7 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
             ),
       content: ConstrainedBox(
         constraints: BoxConstraints(
-          maxWidth: min(MediaQuery.sizeOf(context).width - 28, 440),
+          maxWidth: min(MediaQuery.sizeOf(context).width - 28, 620),
           maxHeight: screenH * 0.78,
         ),
         child: SingleChildScrollView(
@@ -467,195 +450,79 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (widget.shiftToEdit == null) ...[
-                  SwitchListTile(
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    title: Text(
-                      context.strings.openSlotMode,
-                      style: const TextStyle(fontSize: 14),
-                    ),
-                    subtitle: Text(
-                      context.strings.assignOneEmployeeMode,
-                      style: TextStyle(fontSize: 11, color: Colors.grey[600]),
-                    ),
-                    value: _isOpenSlot,
-                    onChanged: (v) {
-                      setState(() {
-                        _isOpenSlot = v;
-                        if (v) {
-                          _selectedEmployeeId = null;
+                Builder(
+                  builder: (context) {
+                    final provider = Provider.of<RestaurantProvider>(context);
+                    return StreamBuilder<List<EmployeeModel>>(
+                      stream: provider.getEmployeesStream(),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.waiting &&
+                            (snapshot.data == null || snapshot.data!.isEmpty)) {
+                          return const LinearProgressIndicator(minHeight: 2);
                         }
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 4),
-                ],
-                if (_isOpenSlot) ...[
-                  TextFormField(
-                    controller: _maxEmployeesController,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.digitsOnly,
-                    ],
-                    decoration: InputDecoration(
-                      labelText: context.strings.maxEmployeesLabel,
-                      border: const OutlineInputBorder(),
-                      isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 10,
-                      ),
-                    ),
-                    validator: (value) {
-                      final n = int.tryParse(value?.trim() ?? '');
-                      if (n == null || n < 1) {
-                        return 'Nhập số nguyên từ 1';
-                      }
-                      final editing = widget.shiftToEdit;
-                      if (editing != null &&
-                          editing.openSlot &&
-                          n < editing.registeredCount) {
-                        return 'Không được nhỏ hơn ${editing.registeredCount} người đã đăng ký';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 10),
-                ],
-                if (!_isOpenSlot)
-                  Builder(
-                    builder: (context) {
-                      final provider = Provider.of<RestaurantProvider>(context);
-                      return StreamBuilder<List<EmployeeModel>>(
-                        stream: provider.getEmployeesStream(),
-                        builder: (context, snapshot) {
-                          if (snapshot.connectionState ==
-                              ConnectionState.waiting) {
-                            if (_selectedEmployeeId != null) {
-                              WidgetsBinding.instance.addPostFrameCallback((_) {
-                                if (mounted) {
-                                  setState(() {
-                                    _selectedEmployeeId = null;
-                                  });
-                                }
-                              });
-                            }
-                            return DropdownButtonFormField<String>(
-                              initialValue: null,
-                              decoration: const InputDecoration(
-                                labelText: 'Đang tải nhân viên...',
-                                border: OutlineInputBorder(),
-                              ),
-                              items: const [],
-                              onChanged: (_) {},
-                            );
+
+                        final allEmployees = snapshot.data ?? [];
+                        final employeesMap = <String, EmployeeModel>{};
+                        for (var emp in allEmployees) {
+                          if (emp.isActive && !employeesMap.containsKey(emp.id)) {
+                            employeesMap[emp.id] = emp;
                           }
+                        }
+                        final employees = employeesMap.values.toList();
+                        for (final emp in employees) {
+                          _employeeNamesById[emp.id] = emp.name;
+                        }
 
-                          if (snapshot.hasError) {
-                            if (_selectedEmployeeId != null) {
-                              WidgetsBinding.instance.addPostFrameCallback((_) {
-                                if (mounted) {
-                                  setState(() {
-                                    _selectedEmployeeId = null;
-                                  });
-                                }
-                              });
-                            }
-                            return DropdownButtonFormField<String>(
-                              initialValue: null,
-                              decoration: const InputDecoration(
-                                labelText: 'Lỗi khi tải nhân viên',
-                                border: OutlineInputBorder(),
-                              ),
-                              items: const [],
-                              onChanged: (_) {},
-                            );
-                          }
-
-                          final allEmployees = snapshot.data ?? [];
-                          final employeesMap = <String, EmployeeModel>{};
-                          for (var emp in allEmployees) {
-                            if (emp.isActive &&
-                                !employeesMap.containsKey(emp.id)) {
-                              employeesMap[emp.id] = emp;
-                            }
-                          }
-                          final employees = employeesMap.values.toList();
-
-                          if (employees.isEmpty) {
-                            if (_selectedEmployeeId != null) {
-                              WidgetsBinding.instance.addPostFrameCallback((_) {
-                                if (mounted) {
-                                  setState(() {
-                                    _selectedEmployeeId = null;
-                                  });
-                                }
-                              });
-                            }
-                            return DropdownButtonFormField<String>(
-                              initialValue: null,
-                              decoration: const InputDecoration(
-                                labelText: 'Chưa có nhân viên',
-                                border: OutlineInputBorder(),
-                              ),
-                              items: const [],
-                              onChanged: (_) {},
-                            );
-                          }
-
-                          final items = employees.map((emp) {
-                            return DropdownMenuItem<String>(
-                              value: emp.id,
-                              child: Text(emp.name),
-                            );
-                          }).toList();
-
-                          final validEmployeeId =
-                              _selectedEmployeeId != null &&
-                                  employees.any(
-                                    (emp) => emp.id == _selectedEmployeeId,
-                                  )
-                              ? _selectedEmployeeId
-                              : null;
-
-                          if (widget.shiftToEdit != null &&
-                              validEmployeeId == null &&
-                              _selectedEmployeeId != null) {
+                        if (employees.isNotEmpty) {
+                          final validCurrent = _selectedEmployeeId != null &&
+                              employees.any((e) => e.id == _selectedEmployeeId);
+                          if (!validCurrent) {
                             WidgetsBinding.instance.addPostFrameCallback((_) {
-                              if (mounted) {
-                                setState(() {
-                                  _selectedEmployeeId = null;
-                                });
-                              }
+                              if (!mounted) return;
+                              setState(() {
+                                _selectedEmployeeId = employees.first.id;
+                              });
                             });
                           }
+                        }
 
-                          return DropdownButtonFormField<String>(
-                            initialValue: validEmployeeId,
-                            decoration: InputDecoration(
-                              labelText: context.strings.employeeLabel,
-                              border: const OutlineInputBorder(),
-                            ),
-                            items: items,
-                            onChanged: (value) {
-                              setState(() {
-                                _selectedEmployeeId = value;
-                              });
-                            },
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return context.strings.selectEmployeeRequired;
-                              }
-                              return null;
-                            },
-                          );
-                        },
-                      );
-                    },
-                  ),
-                if (!_isOpenSlot) const SizedBox(height: 10),
+                        return DropdownButtonFormField<String>(
+                          initialValue: _selectedEmployeeId,
+                          decoration: InputDecoration(
+                            labelText: context.strings.employeeLabel,
+                            border: const OutlineInputBorder(),
+                            isDense: true,
+                          ),
+                          items: employees
+                              .map(
+                                (emp) => DropdownMenuItem<String>(
+                                  value: emp.id,
+                                  child: Text(emp.name),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: employees.isEmpty
+                              ? null
+                              : (value) {
+                                  setState(() {
+                                    _selectedEmployeeId = value;
+                                  });
+                                },
+                          validator: (value) {
+                            if (employees.isEmpty) {
+                              return 'Chưa có nhân viên khả dụng';
+                            }
+                            if (value == null || value.isEmpty) {
+                              return context.strings.selectEmployeeRequired;
+                            }
+                            return null;
+                          },
+                        );
+                      },
+                    );
+                  },
+                ),
+                const SizedBox(height: 10),
 
                 if (widget.shiftToEdit != null)
                   InkWell(
@@ -764,52 +631,6 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
                 ),
                 const SizedBox(height: 10),
 
-                // Status
-                Builder(
-                  builder: (context) {
-                    final strings = context.strings;
-                    return DropdownButtonFormField<ShiftStatus>(
-                      initialValue: _status,
-                      isDense: true,
-                      decoration: InputDecoration(
-                        labelText: strings.shiftStatusFieldLabel,
-                        border: const OutlineInputBorder(),
-                        isDense: true,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 10,
-                        ),
-                      ),
-                      items: ShiftStatus.values.map((status) {
-                        String label;
-                        switch (status) {
-                          case ShiftStatus.scheduled:
-                            label = strings.shiftScheduled;
-                            break;
-                          case ShiftStatus.completed:
-                            label = strings.shiftCompleted;
-                            break;
-                          case ShiftStatus.cancelled:
-                            label = strings.shiftCancelled;
-                            break;
-                        }
-                        return DropdownMenuItem<ShiftStatus>(
-                          value: status,
-                          child: Text(label),
-                        );
-                      }).toList(),
-                      onChanged: (value) {
-                        if (value != null) {
-                          setState(() {
-                            _status = value;
-                          });
-                        }
-                      },
-                    );
-                  },
-                ),
-                const SizedBox(height: 10),
-
                 // Notes
                 TextFormField(
                   controller: _notesController,
@@ -885,61 +706,23 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
             final notesSanitized =
                 InputSanitizer.sanitizeNotes(_notesController.text);
             final notes = notesSanitized.isEmpty ? null : notesSanitized;
-
-            if (_isOpenSlot) {
-              final maxParsed =
-                  int.tryParse(_maxEmployeesController.text.trim());
-              if (maxParsed == null) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(strings.formValidationFailed),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
-                return;
+            final selectedId = _selectedEmployeeId;
+            if (selectedId == null || selectedId.isEmpty) {
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(strings.selectEmployeeRequired),
+                    backgroundColor: Colors.red,
+                  ),
+                );
               }
-              final maxEm = maxParsed;
-              final editing = widget.shiftToEdit;
-              final preserved = editing != null && editing.openSlot
-                  ? List<String>.from(editing.registeredEmployeeIds)
-                  : <String>[];
-              final shifts = dates
-                  .map(
-                    (d) => ShiftModel(
-                      id: editing?.id ?? '',
-                      employeeId: ShiftModel.openSlotEmployeeId,
-                      employeeName: strings.openShiftStoredEmployeeName,
-                      date: DateTime(d.year, d.month, d.day),
-                      startTime: _startTime,
-                      endTime: _endTime,
-                      status: _status,
-                      notes: notes,
-                      openSlot: true,
-                      maxEmployees: maxEm,
-                      registeredEmployeeIds: preserved,
-                    ),
-                  )
-                  .toList();
-              if (!context.mounted) return;
-              if (await _blockIfSameDayTimeOverlapsOthers(
-                    context,
-                    provider,
-                    strings,
-                    shifts,
-                  )) {
-                return;
-              }
-              if (!context.mounted) return;
-              Navigator.pop(context, shifts);
               return;
             }
 
             final overlappingById = <String, ShiftModel>{};
             for (final d in dates) {
               final o = await provider.checkOverlappingShifts(
-                _selectedEmployeeId!,
+                selectedId,
                 d,
                 _startTime,
                 _endTime,
@@ -1054,41 +837,24 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
             if (!context.mounted) return;
 
             try {
-              final employeesSnapshot = await provider
-                  .getEmployeesStream()
-                  .first
-                  .timeout(const Duration(seconds: 5));
-              final employee = employeesSnapshot.firstWhere(
-                (emp) => emp.id == _selectedEmployeeId && emp.isActive,
-                orElse: () => throw Exception(
-                  'Không tìm thấy nhân viên với ID: $_selectedEmployeeId',
-                ),
-              );
+              final employeeName =
+                  _employeeNamesById[selectedId] ?? 'Nhân viên';
 
               final shifts = dates
                   .map(
                     (d) => ShiftModel(
                       id: widget.shiftToEdit?.id ?? '',
-                      employeeId: _selectedEmployeeId!,
-                      employeeName: employee.name,
+                      employeeId: selectedId,
+                      employeeName: employeeName,
                       date: DateTime(d.year, d.month, d.day),
                       startTime: _startTime,
                       endTime: _endTime,
-                      status: _status,
+                      status: widget.shiftToEdit?.status ?? ShiftStatus.scheduled,
                       notes: notes,
                     ),
                   )
                   .toList();
 
-              if (!context.mounted) return;
-              if (await _blockIfSameDayTimeOverlapsOthers(
-                    context,
-                    provider,
-                    strings,
-                    shifts,
-                  )) {
-                return;
-              }
               if (!context.mounted) return;
               Navigator.pop(context, shifts);
             } catch (e, stackTrace) {
@@ -1125,123 +891,6 @@ class _AddShiftDialogState extends State<AddShiftDialog> {
         ),
       ],
     );
-  }
-
-  String _overlapLineForExistingShift(ShiftModel other, AppStrings strings) {
-    final part = classifyShiftDayPart(other.startTime, other.endTime);
-    switch (part) {
-      case ShiftDayPart.morning:
-        return strings.shiftDayPartMorningLabel;
-      case ShiftDayPart.afternoon:
-        return strings.shiftDayPartAfternoonLabel;
-      case ShiftDayPart.evening:
-        return strings.shiftDayPartEveningLabel;
-      case ShiftDayPart.custom:
-        return strings.shiftDayPartCustomRange(
-          formatTimeOfDay(other.startTime),
-          formatTimeOfDay(other.endTime),
-        );
-    }
-  }
-
-  /// `true` = có trùng giờ trong ngày (hoặc trùng nội bộ), đã hiện dialog — không pop.
-  Future<bool> _blockIfSameDayTimeOverlapsOthers(
-    BuildContext outerContext,
-    RestaurantProvider provider,
-    AppStrings strings,
-    List<ShiftModel> proposed,
-  ) async {
-    final lines = <String>[];
-    final seen = <String>{};
-
-    for (var i = 0; i < proposed.length; i++) {
-      for (var j = i + 1; j < proposed.length; j++) {
-        final a = proposed[i];
-        final b = proposed[j];
-        if (a.date.year != b.date.year ||
-            a.date.month != b.date.month ||
-            a.date.day != b.date.day) {
-          continue;
-        }
-        if (shiftTimeRangesOverlap(
-          a.startTime,
-          a.endTime,
-          b.startTime,
-          b.endTime,
-        )) {
-          final d = a.date;
-          final dk = 'self|${d.year}-${d.month}-${d.day}';
-          if (seen.add(dk)) {
-            final dateLabel = '${d.day}/${d.month}/${d.year}';
-            lines.add(
-              '• $dateLabel — ${strings.shiftOverlapInternalDuplicate}',
-            );
-          }
-        }
-      }
-    }
-
-    for (final shift in proposed) {
-      final overlaps = await provider.getShiftsOverlappingTimeOnDate(
-        shift.date,
-        shift.startTime,
-        shift.endTime,
-        excludeShiftId: shift.id.isEmpty ? null : shift.id,
-      );
-      for (final o in overlaps) {
-        final dk = 'db|${o.id}';
-        if (!seen.add(dk)) continue;
-        final d = shift.date;
-        final dateLabel = '${d.day}/${d.month}/${d.year}';
-        lines.add(
-          '• $dateLabel — ${_overlapLineForExistingShift(o, strings)}',
-        );
-      }
-    }
-
-    if (lines.isEmpty) return false;
-    if (!outerContext.mounted) return true;
-
-    await showDialog<void>(
-      context: outerContext,
-      builder: (dialogCtx) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(Icons.error_outline, color: Colors.red[700]),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                strings.shiftSameDayOverlapTitle,
-                style: const TextStyle(fontSize: 18),
-              ),
-            ),
-          ],
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(strings.shiftSameDayOverlapIntro),
-              const SizedBox(height: 12),
-              ...lines.map(
-                (line) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Text(line),
-                ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogCtx),
-            child: Text(strings.shiftOverlapDialogClose),
-          ),
-        ],
-      ),
-    );
-    return true;
   }
 
   String _formatTime(TimeOfDay time) {

@@ -7,6 +7,13 @@ import '../../theme/app_theme.dart';
 import '../../models/menu_item.dart';
 import '../../models/enums.dart';
 import '../../utils/vnd_format.dart';
+import 'dart:io';
+import 'package:excel/excel.dart' hide Border;
+import 'package:path_provider/path_provider.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:html' as html;
+
 
 class ReportsScreen extends StatefulWidget {
   const ReportsScreen({super.key});
@@ -35,11 +42,42 @@ class _ReportsScreenState extends State<ReportsScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(context.strings.reportsTitle),
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: AppTheme.primaryOrange.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                Icons.bar_chart_rounded,
+                size: 18,
+                color: AppTheme.primaryOrange,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              context.strings.reportsTitle,
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+          ],
+        ),
         bottom: TabBar(
           controller: _tabController,
           labelColor: AppTheme.primaryOrange,
-          indicatorColor: AppTheme.primaryOrange,
+          dividerColor: Colors.transparent,
+          indicatorSize: TabBarIndicatorSize.tab,
+          indicator: BoxDecoration(
+            color: AppTheme.primaryOrange.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: AppTheme.primaryOrange.withValues(alpha: 0.2),
+            ),
+          ),
           tabs: [
             Tab(text: context.strings.reportByWeek),
             Tab(text: context.strings.reportByMonth),
@@ -155,6 +193,199 @@ class _ReportTabViewState extends State<_ReportTabView> {
           );
         }
       }
+    }
+  }
+
+  Future<void> _exportToExcel() async {
+    if (_currentReport == null) return;
+    
+    setState(() => _isLoading = true);
+    
+    try {
+      final report = _currentReport!;
+      final provider = Provider.of<RestaurantProvider>(context, listen: false);
+      
+      var excel = Excel.createExcel();
+      Sheet sheetObject = excel['Report'];
+      excel.delete('Sheet1'); // Remove default sheet
+
+      // Header style
+      CellStyle headerStyle = CellStyle(
+        bold: true,
+        fontSize: 12,
+        backgroundColorHex: ExcelColor.fromHexString('FFFF9800'),
+        fontColorHex: ExcelColor.fromHexString('FFFFFFFF'),
+        horizontalAlign: HorizontalAlign.Center,
+      );
+
+      CellStyle titleStyle = CellStyle(
+        bold: true,
+        fontSize: 14,
+      );
+
+      // Title & Info
+      sheetObject.appendRow([TextCellValue('BÁO CÁO DOANH THU TKA')]);
+      sheetObject.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: sheetObject.maxRows - 1)).cellStyle = titleStyle;
+      
+      sheetObject.appendRow([TextCellValue('Loại báo cáo: ${report.periodLabel}')]);
+      sheetObject.appendRow([TextCellValue('Thời gian: ${_formatDate(report.startDate)} - ${_formatDate(report.endDate)}')]);
+      sheetObject.appendRow([TextCellValue('')]);
+
+      // Summary
+      sheetObject.appendRow([TextCellValue('TỔNG QUAN')]);
+      sheetObject.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: sheetObject.maxRows - 1)).cellStyle = titleStyle;
+      
+      sheetObject.appendRow([TextCellValue('Tổng doanh thu'), TextCellValue(report.totalRevenue.toVnd())]);
+      sheetObject.appendRow([TextCellValue('Tổng đơn hàng'), IntCellValue(report.totalOrders)]);
+      sheetObject.appendRow([TextCellValue('Đơn trung bình'), TextCellValue(report.totalOrders > 0 ? (report.totalRevenue / report.totalOrders).toVnd() : '0₫')]);
+      sheetObject.appendRow([TextCellValue('')]);
+
+      // Detailed Orders
+      final orders = await provider.getPaidCompletedOrdersInRange(report.startDate, report.endDate);
+      final orderPaymentMethods = await provider.getOrderPaymentMethods(report.startDate, report.endDate);
+      orders.sort((a, b) => b.timestamp.compareTo(a.timestamp)); // Newest first
+
+      sheetObject.appendRow([TextCellValue('CHI TIẾT CÁC ĐƠN HÀNG')]);
+      sheetObject.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: sheetObject.maxRows - 1)).cellStyle = titleStyle;
+      
+      var detailedHeader = [
+        TextCellValue('STT'),
+        TextCellValue('Thời gian'),
+        TextCellValue('Bàn sử dụng'),
+        TextCellValue('Món ăn'),
+        TextCellValue('Số lượng'),
+        TextCellValue('Đơn giá'),
+        TextCellValue('Thành tiền'),
+        TextCellValue('Thanh toán'),
+      ];
+      sheetObject.appendRow(detailedHeader);
+
+      for (var i = 0; i < detailedHeader.length; i++) {
+        var cell = sheetObject.cell(CellIndex.indexByColumnRow(columnIndex: i, rowIndex: sheetObject.maxRows - 1));
+        cell.cellStyle = headerStyle;
+      }
+
+      int detailedIndex = 1;
+      for (var order in orders) {
+        String timeStr = '${order.timestamp.hour.toString().padLeft(2, '0')}:${order.timestamp.minute.toString().padLeft(2, '0')} '
+            '${order.timestamp.day.toString().padLeft(2, '0')}/${order.timestamp.month.toString().padLeft(2, '0')}/${order.timestamp.year}';
+        
+        String tableName = 'Bàn ${order.tableId}';
+        try {
+          final table = provider.tables.firstWhere((t) => t.id == order.tableId);
+          tableName = table.name;
+        } catch (_) {}
+
+        final paymentMethod = orderPaymentMethods[order.id] ?? 'Chưa rõ';
+        for (var item in order.items) {
+          sheetObject.appendRow([
+            IntCellValue(detailedIndex++),
+            TextCellValue(timeStr),
+            TextCellValue(tableName),
+            TextCellValue(item.menuItem.name),
+            IntCellValue(item.quantity),
+            TextCellValue(item.menuItem.price.toVnd()),
+            TextCellValue((item.menuItem.price * item.quantity).toVnd()),
+            TextCellValue(paymentMethod),
+          ]);
+        }
+      }
+
+      sheetObject.appendRow([TextCellValue('')]);
+
+      // Detailed Sales (Top Selling)
+      sheetObject.appendRow([TextCellValue('CHI TIẾT MÓN BÁN CHẠY')]);
+      sheetObject.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: sheetObject.maxRows - 1)).cellStyle = titleStyle;
+      
+      var headerRow = [
+        TextCellValue('STT'),
+        TextCellValue('Tên món'),
+        TextCellValue('Số lượng'),
+        TextCellValue('Giá bán'),
+        TextCellValue('Thành tiền'),
+      ];
+      sheetObject.appendRow(headerRow);
+      
+      // Apply style to header row
+      for (var i = 0; i < headerRow.length; i++) {
+        var cell = sheetObject.cell(CellIndex.indexByColumnRow(columnIndex: i, rowIndex: sheetObject.maxRows - 1));
+        cell.cellStyle = headerStyle;
+      }
+
+      final sortedEntries = report.itemSales.entries.toList()
+        ..sort((a, b) => b.value.compareTo(a.value));
+      
+      int index = 1;
+      for (var entry in sortedEntries) {
+        final menuItem = provider.menu.firstWhere(
+          (item) => item.id.toString() == entry.key,
+          orElse: () => MenuItem(id: 0, name: 'Unknown', price: 0, category: MenuCategory.food),
+        );
+        final revenue = report.itemRevenue[entry.key] ?? 0.0;
+        
+        sheetObject.appendRow([
+          IntCellValue(index++),
+          TextCellValue(menuItem.name),
+          IntCellValue(entry.value),
+          TextCellValue(menuItem.price.toVnd()),
+          TextCellValue(revenue.toVnd()),
+        ]);
+      }
+
+      var fileBytes = excel.encode();
+      
+      String periodName = '';
+      switch (report.type) {
+        case ReportType.weekly:
+          periodName = report.periodLabel.replaceAll('Tuần ', 'Tuan_').replaceAll('/', '_');
+          break;
+        case ReportType.monthly:
+          periodName = 'Thang_${report.periodLabel.replaceAll('/', '_')}';
+          break;
+        case ReportType.yearly:
+          periodName = report.periodLabel.replaceAll('Năm ', 'Nam_');
+          break;
+      }
+      final fileName = "Bao_cao_$periodName.xlsx";
+
+      if (kIsWeb) {
+        final blob = html.Blob([fileBytes!]);
+        final url = html.Url.createObjectUrlFromBlob(blob);
+        final anchor = html.AnchorElement(href: url)
+          ..setAttribute("download", fileName)
+          ..click();
+        html.Url.revokeObjectUrl(url);
+      } else {
+        final directory = await getApplicationDocumentsDirectory();
+        final filePath = "${directory.path}/$fileName";
+        final file = File(filePath);
+        await file.writeAsBytes(fileBytes!);
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Đã lưu file tại: $filePath'),
+              backgroundColor: AppTheme.statusGreen,
+              action: SnackBarAction(
+                label: 'OK',
+                textColor: Colors.white,
+                onPressed: () {},
+              ),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi xuất Excel: $e'),
+            backgroundColor: AppTheme.statusRed,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -317,100 +548,85 @@ class _ReportTabViewState extends State<_ReportTabView> {
     return RefreshIndicator(
       onRefresh: _loadLatestReport,
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
         physics: const AlwaysScrollableScrollPhysics(),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header with date selector
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        context.strings.reportForPeriod(report.periodLabel),
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${_formatDate(report.startDate)} - ${_formatDate(report.endDate)}',
-                        style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                      ),
-                    ],
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.calendar_today),
-                  onPressed: _selectDateAndGenerate,
-                  tooltip: context.strings.selectDifferentDate,
-                ),
-              ],
+            _buildPeriodHeader(
+              context,
+              title: context.strings.reportForPeriod(report.periodLabel),
+              periodText:
+                  '${_formatDate(report.startDate)} - ${_formatDate(report.endDate)}',
+              onPickDate: _selectDateAndGenerate,
+              onExport: _exportToExcel,
+              tooltip: context.strings.selectDifferentDate,
             ),
             const SizedBox(height: 24),
 
-            // Summary Cards
-            Row(
-              children: [
-                Expanded(
-                  child: _buildStatCard(
-                    context,
-                    context.strings.totalRevenue,
-                    report.totalRevenue.toVnd(),
-                    Icons.attach_money,
-                    AppTheme.statusGreen,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildStatCard(
-                    context,
-                    context.strings.totalOrders,
-                    '${report.totalOrders}',
-                    Icons.receipt_long,
-                    AppTheme.primaryOrange,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildStatCard(
-                    context,
-                    context.strings.averageOrder,
-                    report.totalOrders > 0
-                        ? (report.totalRevenue / report.totalOrders).toVnd()
-                        : '0₫',
-                    Icons.trending_up,
-                    AppTheme.statusYellow,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildStatCard(
-                    context,
-                    context.strings.itemsSold,
-                    '${report.itemSales.length}',
-                    Icons.restaurant_menu,
-                    AppTheme.darkGreyText,
-                  ),
-                ),
-              ],
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final isCompact = constraints.maxWidth < 760;
+                final cardWidth = isCompact
+                    ? constraints.maxWidth
+                    : (constraints.maxWidth - 12) / 2;
+                return Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    SizedBox(
+                      width: cardWidth,
+                      child: _buildStatCard(
+                        context,
+                        context.strings.totalRevenue,
+                        report.totalRevenue.toVnd(),
+                        Icons.attach_money,
+                        AppTheme.statusGreen,
+                      ),
+                    ),
+                    SizedBox(
+                      width: cardWidth,
+                      child: _buildStatCard(
+                        context,
+                        context.strings.totalOrders,
+                        '${report.totalOrders}',
+                        Icons.receipt_long,
+                        AppTheme.primaryOrange,
+                      ),
+                    ),
+                    SizedBox(
+                      width: cardWidth,
+                      child: _buildStatCard(
+                        context,
+                        context.strings.averageOrder,
+                        report.totalOrders > 0
+                            ? (report.totalRevenue / report.totalOrders).toVnd()
+                            : '0₫',
+                        Icons.trending_up,
+                        AppTheme.statusYellow,
+                      ),
+                    ),
+                    SizedBox(
+                      width: cardWidth,
+                      child: _buildStatCard(
+                        context,
+                        context.strings.itemsSold,
+                        '${report.itemSales.length}',
+                        Icons.restaurant_menu,
+                        AppTheme.darkGreyText,
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
             const SizedBox(height: 24),
 
             // Top Selling Items
-            Text(
-              context.strings.mgrBestSellingDemo,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+            _buildSectionHeader(
+              context,
+              title: context.strings.mgrBestSellingDemo,
+              icon: Icons.local_fire_department_outlined,
             ),
             const SizedBox(height: 12),
             if (report.itemSales.isEmpty)
@@ -498,8 +714,16 @@ class _ReportTabViewState extends State<_ReportTabView> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        gradient: LinearGradient(
+          colors: [
+            iconColor.withValues(alpha: 0.08),
+            Colors.white,
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: iconColor.withValues(alpha: 0.2)),
         boxShadow: [
           BoxShadow(
             color: Colors.grey.withValues(alpha: 0.1),
@@ -537,6 +761,114 @@ class _ReportTabViewState extends State<_ReportTabView> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildPeriodHeader(
+    BuildContext context, {
+    required String title,
+    required String periodText,
+    required VoidCallback onPickDate,
+    required VoidCallback onExport,
+    required String tooltip,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            AppTheme.primaryOrange.withValues(alpha: 0.12),
+            Colors.white,
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: AppTheme.primaryOrange.withValues(alpha: 0.18),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  periodText,
+                  style: TextStyle(color: Colors.grey[700], fontSize: 12.5),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Tooltip(
+            message: 'Xuất Excel',
+            child: InkWell(
+              borderRadius: BorderRadius.circular(10),
+              onTap: onExport,
+              child: Container(
+                padding: const EdgeInsets.all(9),
+                decoration: BoxDecoration(
+                  color: Colors.green.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.file_download_rounded, size: 18, color: Colors.green),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Tooltip(
+            message: tooltip,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(10),
+              onTap: onPickDate,
+              child: Container(
+                padding: const EdgeInsets.all(9),
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryOrange.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.calendar_today, size: 18),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(
+    BuildContext context, {
+    required String title,
+    required IconData icon,
+  }) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(7),
+          decoration: BoxDecoration(
+            color: AppTheme.primaryOrange.withValues(alpha: 0.14),
+            borderRadius: BorderRadius.circular(9),
+          ),
+          child: Icon(icon, size: 16, color: AppTheme.primaryOrange),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          title,
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+        ),
+      ],
     );
   }
 

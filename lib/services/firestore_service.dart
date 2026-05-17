@@ -507,6 +507,41 @@ class FirestoreService {
     }
   }
 
+  Future<List<Map<String, dynamic>>> getPaymentsInRange(
+    DateTime startDate,
+    DateTime endDate,
+  ) async {
+    try {
+      final snapshot = await _firestore
+          .collection(paymentsCollection)
+          .where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(startDate))
+          .where('timestamp', isLessThanOrEqualTo: Timestamp.fromDate(endDate))
+          .orderBy('timestamp', descending: false)
+          .get();
+
+      return snapshot.docs.map((doc) => doc.data()).toList();
+    } catch (_) {
+      // Fallback for index issues: fetch all then filter locally.
+      final snapshot = await _firestore.collection(paymentsCollection).get();
+      final records = <Map<String, dynamic>>[];
+      for (final doc in snapshot.docs) {
+        final data = doc.data();
+        final ts = data['timestamp'];
+        if (ts is! Timestamp) continue;
+        final dt = ts.toDate();
+        if (!dt.isBefore(startDate) && !dt.isAfter(endDate)) {
+          records.add(data);
+        }
+      }
+      records.sort((a, b) {
+        final aTs = (a['timestamp'] as Timestamp).toDate();
+        final bTs = (b['timestamp'] as Timestamp).toDate();
+        return aTs.compareTo(bTs);
+      });
+      return records;
+    }
+  }
+
   // Mark orders as paid
   // Firestore whereIn has a limit of 10 items, so we need to split queries
   Future<void> markOrdersAsPaid(List<int> orderIds) async {
@@ -616,10 +651,8 @@ class FirestoreService {
             .toList();
 
         final filteredOrders = allOrders.where((order) {
-          return order.timestamp.isAfter(
-                startDate.subtract(const Duration(days: 1)),
-              ) &&
-              order.timestamp.isBefore(endDate.add(const Duration(days: 1)));
+          return !order.timestamp.isBefore(startDate) &&
+              !order.timestamp.isAfter(endDate);
         }).toList();
 
         filteredOrders.sort((a, b) => b.timestamp.compareTo(a.timestamp));
@@ -668,10 +701,8 @@ class FirestoreService {
             .toList();
 
         final filteredOrders = allOrders.where((order) {
-          return order.timestamp.isAfter(
-                startDate.subtract(const Duration(days: 1)),
-              ) &&
-              order.timestamp.isBefore(endDate.add(const Duration(days: 1)));
+          return !order.timestamp.isBefore(startDate) &&
+              !order.timestamp.isAfter(endDate);
         }).toList();
 
         filteredOrders.sort((a, b) => b.timestamp.compareTo(a.timestamp));
@@ -679,6 +710,37 @@ class FirestoreService {
       } catch (e2) {
         return [];
       }
+    }
+  }
+
+  Future<List<OrderModel>> getPaidOrdersByIds(
+    List<int> orderIds,
+    List<MenuItem> menu,
+  ) async {
+    if (orderIds.isEmpty) return [];
+    try {
+      const int whereInLimit = 10;
+      final docs = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+      final uniqueIds = orderIds.toSet().toList();
+
+      for (int i = 0; i < uniqueIds.length; i += whereInLimit) {
+        final chunk = uniqueIds.skip(i).take(whereInLimit).toList();
+        final snap = await _firestore
+            .collection(ordersCollection)
+            .where('id', whereIn: chunk)
+            .where('isPaid', isEqualTo: true)
+            .where('status', isEqualTo: 'completed')
+            .get();
+        docs.addAll(snap.docs);
+      }
+
+      final orders = docs
+          .map((doc) => _orderFromFirestore(doc.id, doc.data(), menu))
+          .toList();
+      orders.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+      return orders;
+    } catch (_) {
+      return [];
     }
   }
 

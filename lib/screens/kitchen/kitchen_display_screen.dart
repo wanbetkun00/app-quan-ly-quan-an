@@ -1,7 +1,9 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/models.dart';
 import '../../providers/restaurant_provider.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/language_provider.dart';
 import '../../providers/app_strings.dart';
 import '../../theme/app_theme.dart';
@@ -18,27 +20,64 @@ class KitchenDisplayScreen extends StatefulWidget {
 
 class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
   OrderStatus? _selectedFilter;
-  bool _showCompleted = true;
+  // Theo dõi các đơn đang được cập nhật trạng thái để chặn double-click
+  // và cho người dùng thấy phản hồi loading ngay tại nút bấm.
+  final Set<int> _updatingOrderIds = <int>{};
+
+  Future<void> _advanceOrder(
+    BuildContext context,
+    RestaurantProvider provider,
+    int orderId,
+  ) async {
+    if (_updatingOrderIds.contains(orderId)) return;
+    setState(() => _updatingOrderIds.add(orderId));
+    try {
+      final success = await provider.advanceOrderStatus(orderId);
+      if (!context.mounted) return;
+      if (!success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Lỗi khi cập nhật trạng thái đơn hàng'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _updatingOrderIds.remove(orderId));
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Consumer<RestaurantProvider>(
       builder: (context, provider, _) {
+        final auth = Provider.of<AuthProvider>(context, listen: false);
+
+        final isMobilePlatform = kIsWeb
+            ? false
+            : (defaultTargetPlatform == TargetPlatform.android ||
+                defaultTargetPlatform == TargetPlatform.iOS);
+        final loggedUsername = (auth.username ?? '').trim().toLowerCase();
+
+        // Web/Desktop POS style for Manager & Kitchen accounts only.
+        final bool posMode = !isMobilePlatform &&
+            (auth.role == UserRole.manager || loggedUsername == 'kitchen');
+
         if (provider.isLoading) {
           return Scaffold(
             backgroundColor: AppTheme.lightGreyBg,
-            appBar: _buildAppBar(context),
+            appBar: _buildAppBar(context, posMode),
             body: const Center(child: CircularProgressIndicator()),
           );
         }
 
-        // Filter orders
-        var filteredOrders = provider.activeOrders;
-        if (!_showCompleted) {
-          filteredOrders = filteredOrders
-              .where((o) => o.status != OrderStatus.completed)
-              .toList();
-        }
+        // Completed orders are removed from activeOrders immediately after
+        // kitchen confirms them, so no need to filter them here.
+        var filteredOrders = provider.activeOrders
+            .where((o) => o.status != OrderStatus.completed)
+            .toList();
 
         if (_selectedFilter != null) {
           filteredOrders = filteredOrders
@@ -46,25 +85,19 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
               .toList();
         }
 
-        // Sort by timestamp (oldest first for pending, newest first for others)
-        filteredOrders.sort((a, b) {
-          if (a.status == OrderStatus.pending &&
-              b.status == OrderStatus.pending) {
-            return a.timestamp.compareTo(b.timestamp); // Oldest first
-          }
-          return b.timestamp.compareTo(a.timestamp); // Newest first
-        });
+        // Sắp xếp theo thời gian gửi đến bếp (cũ nhất lên đầu).
+        filteredOrders.sort((a, b) => a.timestamp.compareTo(b.timestamp));
 
         return Scaffold(
           backgroundColor: AppTheme.lightGreyBg,
-          appBar: _buildAppBar(context),
+          appBar: _buildAppBar(context, posMode),
           body: Column(
             children: [
               // Order Status Section
-              _buildOrderStatusSection(context, provider),
+              _buildOrderStatusSection(context, provider, posMode),
 
               // Filter Bar
-              _buildFilterBar(context, filteredOrders),
+              _buildFilterBar(context, filteredOrders, posMode),
 
               // Orders Grid
               Expanded(
@@ -72,24 +105,57 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
                     ? _buildEmptyState(context)
                     : RefreshIndicator(
                         onRefresh: () => provider.refreshData(),
-                        child: GridView.builder(
-                          padding: const EdgeInsets.all(12),
-                          gridDelegate:
-                              const SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: 2,
-                                childAspectRatio: 0.7,
-                                crossAxisSpacing: 12,
-                                mainAxisSpacing: 12,
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            final width = constraints.maxWidth;
+                            var crossAxisCount = 2;
+                            var childAspectRatio = 0.7;
+
+                            if (posMode) {
+                              // POS/Web: nhỏ gọn hơn, nhiều cột hơn giống màn sơ đồ bàn.
+                              if (width >= 1400) {
+                                crossAxisCount = 4;
+                              } else if (width >= 1100) {
+                                crossAxisCount = 3;
+                              } else {
+                                crossAxisCount = 2;
+                              }
+                              childAspectRatio = 1.15;
+                            } else {
+                              // Default: giữ trải nghiệm hiện tại
+                              crossAxisCount = 2;
+                              childAspectRatio = 0.7;
+                            }
+
+                            return GridView.builder(
+                              padding: EdgeInsets.all(posMode ? 8 : 12),
+                              gridDelegate:
+                                  SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: crossAxisCount,
+                                childAspectRatio: childAspectRatio,
+                                crossAxisSpacing: posMode ? 8 : 12,
+                                mainAxisSpacing: posMode ? 8 : 12,
                               ),
-                          itemCount: filteredOrders.length,
-                          itemBuilder: (context, index) {
-                            return AnimatedCard(
-                              delay: Duration(milliseconds: index * 50),
-                              child: _buildOrderCard(
-                                context,
-                                filteredOrders[index],
-                                provider,
-                              ),
+                              itemCount: filteredOrders.length,
+                              itemBuilder: (context, index) {
+                                if (posMode) {
+                                  return _buildOrderCard(
+                                    context,
+                                    filteredOrders[index],
+                                    provider,
+                                    posMode,
+                                  );
+                                }
+                                return AnimatedCard(
+                                  delay: Duration(milliseconds: index * 50),
+                                  child: _buildOrderCard(
+                                    context,
+                                    filteredOrders[index],
+                                    provider,
+                                    posMode,
+                                  ),
+                                );
+                              },
                             );
                           },
                         ),
@@ -102,11 +168,12 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
     );
   }
 
-  PreferredSizeWidget _buildAppBar(BuildContext context) {
+  PreferredSizeWidget _buildAppBar(BuildContext context, bool posMode) {
     return AppBar(
       title: Text(context.strings.kitchenTitle),
-      backgroundColor: AppTheme.darkGreyText,
+      backgroundColor: posMode ? AppTheme.primaryOrange : AppTheme.darkGreyText,
       foregroundColor: Colors.white,
+      elevation: posMode ? 0 : null,
       actions: [
         Consumer<RestaurantProvider>(
           builder: (context, provider, _) {
@@ -152,6 +219,7 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
   Widget _buildOrderStatusSection(
     BuildContext context,
     RestaurantProvider provider,
+    bool posMode,
   ) {
     final pendingCount = provider.activeOrders
         .where((o) => o.status == OrderStatus.pending)
@@ -164,7 +232,7 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
         .length;
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(posMode ? 12 : 16),
       color: Colors.white,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -185,6 +253,7 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
                   context.strings.orderStatusPending,
                   '$pendingCount',
                   AppTheme.statusRed,
+                  posMode,
                 ),
               ),
               const SizedBox(width: 8),
@@ -194,6 +263,7 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
                   context.strings.orderStatusCooking,
                   '$cookingCount',
                   AppTheme.statusYellow,
+                  posMode,
                 ),
               ),
               const SizedBox(width: 8),
@@ -203,6 +273,7 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
                   context.strings.orderStatusReady,
                   '$readyCount',
                   AppTheme.statusGreen,
+                  posMode,
                 ),
               ),
             ],
@@ -217,12 +288,13 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
     String title,
     String value,
     Color color,
+    bool posMode,
   ) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: EdgeInsets.all(posMode ? 8 : 12),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(posMode ? 6 : 8),
         border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Column(
@@ -230,15 +302,18 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
           Text(
             value,
             style: TextStyle(
-              fontSize: 24,
+              fontSize: posMode ? 18 : 24,
               fontWeight: FontWeight.bold,
               color: color,
             ),
           ),
-          const SizedBox(height: 4),
+          SizedBox(height: posMode ? 3 : 4),
           Text(
             title,
-            style: TextStyle(fontSize: 11, color: Colors.grey[700]),
+            style: TextStyle(
+              fontSize: posMode ? 10 : 11,
+              color: Colors.grey[700],
+            ),
             textAlign: TextAlign.center,
           ),
         ],
@@ -246,9 +321,16 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
     );
   }
 
-  Widget _buildFilterBar(BuildContext context, List<OrderModel> orders) {
+  Widget _buildFilterBar(
+    BuildContext context,
+    List<OrderModel> orders,
+    bool posMode,
+  ) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: EdgeInsets.symmetric(
+        horizontal: posMode ? 8 : 12,
+        vertical: posMode ? 6 : 8,
+      ),
       color: Colors.white,
       child: Row(
         children: [
@@ -262,19 +344,19 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
                     null,
                     orders.length,
                   ),
-                  const SizedBox(width: 8),
+                  SizedBox(width: posMode ? 6 : 8),
                   _buildFilterChip(
                     context.strings.orderStatusPending,
                     OrderStatus.pending,
                     orders.where((o) => o.status == OrderStatus.pending).length,
                   ),
-                  const SizedBox(width: 8),
+                  SizedBox(width: posMode ? 6 : 8),
                   _buildFilterChip(
                     context.strings.orderStatusCooking,
                     OrderStatus.cooking,
                     orders.where((o) => o.status == OrderStatus.cooking).length,
                   ),
-                  const SizedBox(width: 8),
+                  SizedBox(width: posMode ? 6 : 8),
                   _buildFilterChip(
                     context.strings.orderStatusReady,
                     OrderStatus.readyToServe,
@@ -285,19 +367,6 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
                 ],
               ),
             ),
-          ),
-          IconButton(
-            icon: Icon(
-              _showCompleted ? Icons.visibility : Icons.visibility_off,
-            ),
-            onPressed: () {
-              setState(() {
-                _showCompleted = !_showCompleted;
-              });
-            },
-            tooltip: _showCompleted
-                ? 'Ẩn đơn đã hoàn thành'
-                : 'Hiện đơn đã hoàn thành',
           ),
         ],
       ),
@@ -395,6 +464,7 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
     BuildContext context,
     OrderModel order,
     RestaurantProvider provider,
+    bool posMode,
   ) {
     Color statusColor;
     String statusText;
@@ -451,18 +521,18 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
         actionColor,
       ),
       child: Card(
-        elevation: 4,
+        elevation: posMode ? 1 : 4,
         color: cardColor,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: statusColor, width: 3),
+          borderRadius: BorderRadius.circular(posMode ? 10 : 16),
+          side: BorderSide(color: statusColor, width: posMode ? 2 : 3),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // Header
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: EdgeInsets.all(posMode ? 10 : 12),
               decoration: BoxDecoration(
                 color: headerColor == Colors.transparent
                     ? statusColor.withValues(alpha: 0.15)
@@ -532,7 +602,7 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
+                  SizedBox(height: posMode ? 6 : 8),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -585,7 +655,7 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
             // Items List - Limited preview
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.all(12.0),
+                padding: EdgeInsets.all(posMode ? 10.0 : 12.0),
                 child: order.items.isEmpty
                     ? const Center(
                         child: Text(
@@ -608,8 +678,8 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
                               children: [
                                 // Quantity Badge
                                 Container(
-                                  width: 28,
-                                  height: 28,
+                                  width: posMode ? 24 : 28,
+                                  height: posMode ? 24 : 28,
                                   decoration: BoxDecoration(
                                     color: statusColor.withValues(alpha: 0.2),
                                     borderRadius: BorderRadius.circular(6),
@@ -623,7 +693,7 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
                                       '${item.quantity}',
                                       style: TextStyle(
                                         fontWeight: FontWeight.bold,
-                                        fontSize: 12,
+                                          fontSize: posMode ? 11 : 12,
                                         color: statusColor,
                                       ),
                                     ),
@@ -652,7 +722,7 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
 
             // Footer with total and action
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: EdgeInsets.all(posMode ? 10 : 12),
               decoration: BoxDecoration(
                 color: Colors.grey[50],
                 borderRadius: const BorderRadius.vertical(
@@ -692,38 +762,42 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
                     ],
                   ),
                   if (order.status != OrderStatus.completed) ...[
-                    const SizedBox(height: 8),
+                    SizedBox(height: posMode ? 6 : 8),
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: actionColor,
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          disabledBackgroundColor:
+                              actionColor.withValues(alpha: 0.6),
+                          disabledForegroundColor: Colors.white,
+                          padding: EdgeInsets.symmetric(
+                            vertical: posMode ? 8 : 10,
+                          ),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(posMode ? 6 : 8),
                           ),
                         ),
-                        onPressed: () async {
-                          final success = await provider.advanceOrderStatus(
-                            order.id,
-                          );
-                          if (context.mounted) {
-                            if (!success) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'Lỗi khi cập nhật trạng thái đơn hàng',
+                        onPressed: _updatingOrderIds.contains(order.id)
+                            ? null
+                            : () => _advanceOrder(context, provider, order.id),
+                        icon: _updatingOrderIds.contains(order.id)
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Colors.white,
                                   ),
-                                  backgroundColor: Colors.red,
                                 ),
-                              );
-                            }
-                          }
-                        },
-                        icon: Icon(nextActionIcon, size: 18),
+                              )
+                            : Icon(nextActionIcon, size: 18),
                         label: Text(
-                          nextActionText,
+                          _updatingOrderIds.contains(order.id)
+                              ? 'Đang cập nhật...'
+                              : nextActionText,
                           style: const TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
@@ -981,32 +1055,36 @@ class _KitchenDisplayScreenState extends State<KitchenDisplayScreen> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: actionColor,
                           foregroundColor: Colors.white,
+                          disabledBackgroundColor:
+                              actionColor.withValues(alpha: 0.6),
+                          disabledForegroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),
                         ),
-                        onPressed: () async {
-                          final success = await provider.advanceOrderStatus(
-                            order.id,
-                          );
-                          if (ctx.mounted) {
-                            Navigator.pop(ctx);
-                            if (!success) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'Lỗi khi cập nhật trạng thái đơn hàng',
+                        onPressed: _updatingOrderIds.contains(order.id)
+                            ? null
+                            : () {
+                                Navigator.pop(ctx);
+                                _advanceOrder(context, provider, order.id);
+                              },
+                        icon: _updatingOrderIds.contains(order.id)
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Colors.white,
                                   ),
-                                  backgroundColor: Colors.red,
                                 ),
-                              );
-                            }
-                          }
-                        },
-                        icon: Icon(nextActionIcon, size: 22),
+                              )
+                            : Icon(nextActionIcon, size: 22),
                         label: Text(
-                          nextActionText,
+                          _updatingOrderIds.contains(order.id)
+                              ? 'Đang cập nhật...'
+                              : nextActionText,
                           style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,

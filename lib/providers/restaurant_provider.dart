@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/models.dart';
 import '../theme/app_theme.dart';
 import '../services/error_handler.dart';
@@ -21,6 +22,7 @@ class RestaurantProvider extends ChangeNotifier {
   // These orders are only counted after cashier marks them as paid.
   List<OrderModel> paidCompletedOrdersLast7Days = [];
   List<EmployeeModel> _employees = [];
+  final Set<int> _placingOrderTableIds = <int>{};
 
   bool _isLoading = true;
   bool get isLoading => _isLoading;
@@ -176,9 +178,10 @@ class RestaurantProvider extends ChangeNotifier {
               .toList();
 
           if (tableOrders.isEmpty) {
-            // No active orders for this table
-            // Reset to available regardless of current status (orders have been paid and deleted)
-            if (table.status != TableStatus.available) {
+            // No active orders for this table.
+            // Keep paymentPending for cashier flow, only auto-reset other states.
+            if (table.status != TableStatus.available &&
+                table.status != TableStatus.paymentPending) {
               table.status = TableStatus.available;
               table.currentOrderId = null;
               hasChanges = true;
@@ -375,6 +378,10 @@ class RestaurantProvider extends ChangeNotifier {
     String? employeeId,
   }) async {
     if (items.isEmpty) return false;
+    if (_placingOrderTableIds.contains(tableId)) {
+      return false;
+    }
+    _placingOrderTableIds.add(tableId);
 
     try {
       final tableIndex = tables.indexWhere((t) => t.id == tableId);
@@ -385,18 +392,21 @@ class RestaurantProvider extends ChangeNotifier {
       }
 
       final table = tables[tableIndex];
+      final shouldCreateFreshOrder = table.status == TableStatus.paymentPending;
       OrderModel? existingOrder;
-      if (table.currentOrderId != null) {
+      if (!shouldCreateFreshOrder && table.currentOrderId != null) {
         try {
           existingOrder = activeOrders.firstWhere((o) => o.id == table.currentOrderId);
         } catch (_) {
           existingOrder = await _firestoreService.getActiveOrderForTable(tableId, menu);
         }
-      } else {
+      } else if (!shouldCreateFreshOrder) {
         existingOrder = await _firestoreService.getActiveOrderForTable(tableId, menu);
       }
 
-      if (existingOrder != null) {
+      if (existingOrder != null &&
+          existingOrder.status != OrderStatus.completed &&
+          !shouldCreateFreshOrder) {
         final mergedItems = existingOrder.items
             .map((item) => OrderItem(menuItem: item.menuItem, quantity: item.quantity))
             .toList();
@@ -411,16 +421,12 @@ class RestaurantProvider extends ChangeNotifier {
           }
         }
 
-        final nextStatus = existingOrder.status == OrderStatus.completed
-            ? OrderStatus.pending
-            : existingOrder.status;
-
         final updatedOrder = OrderModel(
           id: existingOrder.id,
           tableId: existingOrder.tableId,
           timestamp: existingOrder.timestamp,
           items: mergedItems,
-          status: nextStatus,
+          status: existingOrder.status,
           employeeId: existingOrder.employeeId ?? employeeId,
         );
 
@@ -434,8 +440,13 @@ class RestaurantProvider extends ChangeNotifier {
         tables[tableIndex].status = TableStatus.occupied;
         tables[tableIndex].currentOrderId = existingOrder.id;
         await _firestoreService.updateTable(tables[tableIndex]);
-        await _refreshOrders();
-        await _refreshTables();
+        final localOrderIndex = activeOrders.indexWhere((o) => o.id == existingOrder!.id);
+        if (localOrderIndex != -1) {
+          activeOrders[localOrderIndex] = updatedOrder;
+        } else {
+          activeOrders.insert(0, updatedOrder);
+        }
+        notifyListeners();
         return true;
       }
 
@@ -464,10 +475,6 @@ class RestaurantProvider extends ChangeNotifier {
       activeOrders.insert(0, newOrder);
       notifyListeners();
 
-      // Force refresh orders and tables from Firestore to ensure consistency
-      // The stream will also update automatically, but this ensures immediate UI update
-      await Future.wait([_refreshOrders(), _refreshTables()]);
-
       return true;
     } catch (e, stackTrace) {
       _errorHandler.handleError(
@@ -481,6 +488,8 @@ class RestaurantProvider extends ChangeNotifier {
         },
       );
       return false;
+    } finally {
+      _placingOrderTableIds.remove(tableId);
     }
   }
 
@@ -647,21 +656,22 @@ class RestaurantProvider extends ChangeNotifier {
       // Update local state immediately for instant UI feedback
       activeOrders[orderIndex].status = newStatus;
 
-      // If order is completed, update table status
+      // If order is completed: move table to paymentPending so cashier
+      // can handle it. Stream listener sẽ tự đồng bộ activeOrders/tables.
       if (newStatus == OrderStatus.completed) {
         final tableIndex = tables.indexWhere((t) => t.id == order.tableId);
         if (tableIndex != -1) {
           tables[tableIndex].status = TableStatus.paymentPending;
-          await _firestoreService.updateTable(tables[tableIndex]);
+          // Cập nhật Firestore không block UI – stream sẽ hợp nhất kết quả.
+          unawaited(_firestoreService.updateTable(tables[tableIndex]));
         }
       }
 
-      // Notify listeners immediately for instant UI update
+      // Notify listeners immediately for instant UI update.
+      // KHÔNG gọi _refreshOrders/_refreshTables ở đây nữa vì sẽ làm UI đơ
+      // (mỗi cái còn chạy _syncTableStatusesWithOrders ghi Firestore từng bàn).
+      // Stream getActiveOrdersStream đã tự cập nhật khi Firestore đổi.
       notifyListeners();
-
-      // Force refresh from Firestore to ensure consistency
-      // This will also update the stream listener
-      await Future.wait([_refreshOrders(), _refreshTables()]);
 
       return true;
     } catch (e, stackTrace) {
@@ -897,6 +907,105 @@ class RestaurantProvider extends ChangeNotifier {
         .where((entry) => itemMap.containsKey(entry.key))
         .map((entry) => MapEntry(itemMap[entry.key]!, entry.value))
         .toList();
+  }
+
+  Future<ManagerTodayOverviewData> getManagerTodayOverviewData() async {
+    final now = DateTime.now();
+    final start = DateTime(now.year, now.month, now.day);
+    final end = DateTime(now.year, now.month, now.day, 23, 59, 59);
+
+    final payments = await _firestoreService.getPaymentsInRange(start, end);
+    final paidOrderIds = <int>[];
+    for (final p in payments) {
+      final ids = p['orderIds'];
+      if (ids is List) {
+        for (final id in ids) {
+          if (id is int) {
+            paidOrderIds.add(id);
+          } else if (id is num) {
+            paidOrderIds.add(id.toInt());
+          }
+        }
+      }
+    }
+    final paidOrders = await _firestoreService.getPaidOrdersByIds(
+      paidOrderIds,
+      menu,
+    );
+
+    double totalRevenue = 0.0;
+    double totalDiscount = 0.0;
+    double totalCashRevenue = 0.0;
+    double totalTransferRevenue = 0.0;
+    final hourlyRevenue = List<double>.filled(24, 0.0);
+    final Map<int, int> itemCounts = {};
+    final Map<int, double> itemRevenue = {};
+    final Map<int, MenuItem> itemMap = {};
+
+    for (final m in menu) {
+      itemMap[m.id] = m;
+    }
+
+    for (final p in payments) {
+      final paidAmount = (p['totalAmount'] as num?)?.toDouble() ?? 0.0;
+      final discountPercent = (p['discountPercent'] as num?)?.toDouble() ?? 0.0;
+      final paymentMethod = (p['paymentMethod'] as String?)?.trim().toLowerCase();
+      totalRevenue += paidAmount;
+      if (paymentMethod == PaymentMethod.cash.name ||
+          paymentMethod == 'tienmat' ||
+          paymentMethod == 'tiền mặt') {
+        totalCashRevenue += paidAmount;
+      } else if (paymentMethod == PaymentMethod.transfer.name ||
+          paymentMethod == 'chuyenkhoan' ||
+          paymentMethod == 'chuyển khoản') {
+        totalTransferRevenue += paidAmount;
+      }
+
+      // totalAmount hiện là số tiền sau giảm giá, quy đổi ngược để ra tiền giảm.
+      if (discountPercent > 0 && discountPercent < 100) {
+        final original = paidAmount / (1 - discountPercent / 100);
+        totalDiscount += (original - paidAmount);
+      }
+
+      final ts = p['timestamp'];
+      if (ts is Timestamp) {
+        final hour = ts.toDate().hour;
+        if (hour >= 0 && hour < 24) {
+          hourlyRevenue[hour] += paidAmount;
+        }
+      }
+    }
+
+    for (final order in paidOrders) {
+      for (final oi in order.items) {
+        final itemId = oi.menuItem.id;
+        itemCounts[itemId] = (itemCounts[itemId] ?? 0) + oi.quantity;
+        itemRevenue[itemId] =
+            (itemRevenue[itemId] ?? 0.0) + (oi.menuItem.price * oi.quantity);
+        itemMap[itemId] = oi.menuItem;
+      }
+    }
+
+    final topItems = itemCounts.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    final topSellingItems = topItems
+        .where((e) => itemMap.containsKey(e.key))
+        .take(8)
+        .map((e) => MapEntry(itemMap[e.key]!, e.value))
+        .toList();
+
+    return ManagerTodayOverviewData(
+      date: start,
+      totalRevenue: totalRevenue,
+      totalDiscount: totalDiscount,
+      totalCashRevenue: totalCashRevenue,
+      totalTransferRevenue: totalTransferRevenue,
+      hourlyRevenue: hourlyRevenue,
+      topSellingItems: topSellingItems,
+      itemRevenue: itemRevenue,
+      totalPaidOrders: paidOrders.length,
+    );
   }
 
   // Manager: Add new menu item
@@ -1220,6 +1329,44 @@ class RestaurantProvider extends ChangeNotifier {
         },
       );
       return false;
+    }
+  }
+
+  // Get raw orders in range for export
+  Future<List<OrderModel>> getPaidCompletedOrdersInRange(DateTime start, DateTime end) async {
+    return await _firestoreService.getPaidCompletedOrdersInRange(start, end, menu);
+  }
+
+  // Get payment methods for orders in range
+  Future<Map<int, String>> getOrderPaymentMethods(DateTime start, DateTime end) async {
+    try {
+      final payments = await _firestoreService.getPaymentsInRange(start, end);
+      final Map<int, String> result = {};
+      for (final p in payments) {
+        String method = p['paymentMethod'] as String? ?? 'Chưa rõ';
+        
+        // Normalize method name for display
+        final lowerMethod = method.toLowerCase().trim();
+        if (lowerMethod == 'cash' || lowerMethod == 'tienmat' || lowerMethod == 'tiền mặt') {
+          method = 'Tiền mặt';
+        } else if (lowerMethod == 'transfer' || lowerMethod == 'chuyenkhoan' || lowerMethod == 'chuyển khoản') {
+          method = 'Chuyển khoản';
+        }
+
+        final ids = p['orderIds'];
+        if (ids is List) {
+          for (final id in ids) {
+            if (id is int) {
+              result[id] = method;
+            } else if (id is num) {
+              result[id.toInt()] = method;
+            }
+          }
+        }
+      }
+      return result;
+    } catch (e) {
+      return {};
     }
   }
 
@@ -1668,4 +1815,28 @@ class RestaurantProvider extends ChangeNotifier {
       return null;
     }
   }
+}
+
+class ManagerTodayOverviewData {
+  final DateTime date;
+  final double totalRevenue;
+  final double totalDiscount;
+  final double totalCashRevenue;
+  final double totalTransferRevenue;
+  final List<double> hourlyRevenue;
+  final List<MapEntry<MenuItem, int>> topSellingItems;
+  final Map<int, double> itemRevenue;
+  final int totalPaidOrders;
+
+  ManagerTodayOverviewData({
+    required this.date,
+    required this.totalRevenue,
+    required this.totalDiscount,
+    required this.totalCashRevenue,
+    required this.totalTransferRevenue,
+    required this.hourlyRevenue,
+    required this.topSellingItems,
+    required this.itemRevenue,
+    required this.totalPaidOrders,
+  });
 }

@@ -134,13 +134,16 @@ class AppStrings {
   String get mgrTabDashboard =>
       language == AppLanguage.en ? 'Dashboard' : 'Tổng quan';
   String get mgrTabMenu =>
-      language == AppLanguage.en ? 'Menu Mgmt' : 'Quản lý món ăn';
+      language == AppLanguage.en ? 'Menu Management' : 'Quản lý món ăn';
   String get mgrTabTableManagement =>
       language == AppLanguage.en ? 'Table Management' : 'Quản lý bàn';
   String get mgrTabReports =>
       language == AppLanguage.en ? 'Reports' : 'Báo cáo';
   String get mgrTabShifts => language == AppLanguage.en ? 'Shifts' : 'Ca làm';
   String get mgrTabStaff => language == AppLanguage.en ? 'Staff' : 'Nhân viên';
+  String get mgrEmployeeAccountTitle => language == AppLanguage.en
+      ? 'Employee Account Management'
+      : 'Quản lý tài khoản nhân viên';
 
   String get mgrTodayOverview =>
       language == AppLanguage.en ? "Today's Overview" : 'Tổng quan hôm nay';
@@ -179,6 +182,41 @@ class AppStrings {
   String get mgrNoCompletedOrders => language == AppLanguage.en
       ? 'No completed orders yet'
       : 'Chưa có đơn hàng hoàn thành';
+  String get mgrOverviewLoadFailed => language == AppLanguage.en
+      ? "Unable to load today's overview data."
+      : 'Không thể tải dữ liệu tổng quan hôm nay.';
+  String mgrRevenueTodayWithDate(String dateText) => language == AppLanguage.en
+      ? "Today's Revenue ($dateText)"
+      : 'Doanh thu hôm nay ($dateText)';
+  String get mgrRevenueSoldAmount =>
+      language == AppLanguage.en ? 'Revenues' : 'Doanh thu';
+  String get mgrDiscountAmount =>
+      language == AppLanguage.en ? 'Discounts' : 'Chiết khấu';
+  String get mgrCashAmount =>
+      language == AppLanguage.en ? 'Cash' : 'Tiền mặt';
+  String get mgrTransferAmount =>
+      language == AppLanguage.en ? 'Transfer' : 'Chuyển khoản';
+  String get mgrHourlyRevenueChart =>
+      language == AppLanguage.en ? 'Hourly Revenue Chart' : 'Biểu đồ doanh thu theo giờ';
+  String get mgrTopItemsPieChart => language == AppLanguage.en
+      ? 'Top Selling Items'
+      : 'Tỷ trọng món bán chạy';
+  String get mgrSoldItemsTodayTitle => language == AppLanguage.en
+      ? 'Items Sold Today'
+      : 'Món bán được hôm nay';
+  String mgrBillsCount(int n) =>
+      language == AppLanguage.en ? '$n bills' : '$n hóa đơn';
+  String get mgrNoSoldItemsToday => language == AppLanguage.en
+      ? 'No sold items data for today yet.'
+      : 'Hôm nay chưa có dữ liệu món bán.';
+  String mgrSoldQtyToday(int n) =>
+      language == AppLanguage.en ? 'Sold today: $n' : 'Đã bán: $n';
+  String mgrCategoryLabel(String value) =>
+      language == AppLanguage.en ? 'Category: $value' : 'Danh mục: $value';
+  String mgrRevenueFromItem(String value) => language == AppLanguage.en
+      ? 'Revenue from this item: $value'
+      : 'Doanh thu từ món này: $value';
+  String get closeDialog => language == AppLanguage.en ? 'Close' : 'Đóng';
 
   // Table management
   String get addNewTable =>
@@ -459,7 +497,7 @@ class AppStrings {
 
   // My Shifts screen (staff & cashier)
   String get myShiftsTitle =>
-      language == AppLanguage.en ? 'My Shifts' : 'Ca làm của tôi';
+      language == AppLanguage.en ? 'Work Shifts' : 'Lịch làm việc';
   String get previousWeek =>
       language == AppLanguage.en ? 'Previous Week' : 'Tuần trước';
   String get thisWeek => language == AppLanguage.en ? 'This Week' : 'Tuần này';

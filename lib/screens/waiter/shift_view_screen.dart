@@ -85,9 +85,12 @@ class _ShiftViewScreenState extends State<ShiftViewScreen> {
               shiftDate.isBefore(weekEndN)) ||
           shiftDate.isAtSameMomentAs(weekEndN);
       if (!inWeek) return false;
-      if (shift.openSlot) return true;
-      if (employeeId.isEmpty) return false;
-      return shift.involvesEmployee(employeeId);
+
+      // Cho phép nhân viên xem tất cả ca đã có người nhận (không phải openSlot)
+      // hoặc ca của chính mình (nếu có openSlot mà mình đã đăng ký - tùy logic involvesEmployee)
+      if (shift.openSlot) return false;
+      
+      return true; // Trả về true để xem được tất cả các ca trong tuần
     }).toList();
   }
 
@@ -402,28 +405,6 @@ class _ShiftViewScreenState extends State<ShiftViewScreen> {
                     ),
                   ],
                 ),
-                const Spacer(),
-                if (shifts.isNotEmpty)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isToday
-                          ? Colors.white.withValues(alpha: 0.2)
-                          : AppTheme.primaryOrange.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      '${shifts.length} ${context.strings.shifts}',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: isToday ? Colors.white : AppTheme.primaryOrange,
-                      ),
-                    ),
-                  ),
               ],
             ),
           ),
@@ -452,22 +433,59 @@ class _ShiftViewScreenState extends State<ShiftViewScreen> {
             Padding(
               padding: const EdgeInsets.all(12),
               child: Column(
-                children: shifts.map((shift) {
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: _buildShiftCard(
-                      context,
-                      shift,
-                      restaurantProvider,
-                      employeeId,
-                    ),
-                  );
-                }).toList(),
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ..._buildPeriodSection('Ca sáng', Icons.wb_sunny_outlined,
+                      shifts.where((s) => s.startTime.hour < 11).toList(),
+                      context, restaurantProvider, employeeId),
+                  ..._buildPeriodSection('Ca trưa', Icons.wb_cloudy_outlined,
+                      shifts.where((s) => s.startTime.hour >= 11 && s.startTime.hour < 17).toList(),
+                      context, restaurantProvider, employeeId),
+                  ..._buildPeriodSection('Ca chiều', Icons.nights_stay_outlined,
+                      shifts.where((s) => s.startTime.hour >= 17).toList(),
+                      context, restaurantProvider, employeeId),
+                ],
               ),
             ),
         ],
       ),
     );
+  }
+
+  List<Widget> _buildPeriodSection(
+    String title,
+    IconData icon,
+    List<ShiftModel> periodShifts,
+    BuildContext context,
+    RestaurantProvider provider,
+    String employeeId,
+  ) {
+    if (periodShifts.isEmpty) return [];
+    return [
+      Padding(
+        padding: const EdgeInsets.only(top: 12, bottom: 8),
+        child: Row(
+          children: [
+            Icon(icon, size: 16, color: Colors.grey[600]),
+            const SizedBox(width: 8),
+            Text(
+              title,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: Colors.grey[700],
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Expanded(child: Divider()),
+          ],
+        ),
+      ),
+      ...periodShifts.map((shift) => Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _buildShiftCard(context, shift, provider, employeeId),
+          )),
+    ];
   }
 
   Color _openSlotStaffingColor(ShiftStaffingLevel level) {
@@ -520,6 +538,7 @@ class _ShiftViewScreenState extends State<ShiftViewScreen> {
         statusIcon = Icons.cancel;
         break;
     }
+    final isMyShift = !shift.openSlot && shift.employeeId == employeeId;
 
     final staffingColor = shift.openSlot
         ? _openSlotStaffingColor(shift.staffingLevel)
@@ -610,11 +629,11 @@ class _ShiftViewScreenState extends State<ShiftViewScreen> {
                   const SizedBox(width: 4),
                   Expanded(
                     child: Text(
-                      shift.employeeName,
+                      isMyShift ? '${shift.employeeName} (Bạn)' : shift.employeeName,
                       style: TextStyle(
                         fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.darkGreyText,
+                        fontWeight: isMyShift ? FontWeight.bold : FontWeight.w600,
+                        color: isMyShift ? AppTheme.primaryOrange : AppTheme.darkGreyText,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -679,76 +698,6 @@ class _ShiftViewScreenState extends State<ShiftViewScreen> {
                 ),
               ],
             ),
-            if (shift.openSlot &&
-                shift.status == ShiftStatus.scheduled) ...[
-              const SizedBox(height: 10),
-              if (employeeId.isEmpty)
-                Text(
-                  context.strings.shiftSignupRequiresLinkedAccount,
-                  style: TextStyle(fontSize: 10, color: Colors.grey[600]),
-                )
-              else if (shift.isRegistered(employeeId))
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton(
-                    onPressed: () async {
-                      final err =
-                          await restaurantProvider.unregisterStaffFromOpenShift(
-                        shiftId: shift.id,
-                        employeeId: employeeId,
-                      );
-                      if (!context.mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            err ?? context.strings.shiftUnregisterSuccess,
-                          ),
-                          backgroundColor:
-                              err != null ? Colors.red : AppTheme.statusGreen,
-                        ),
-                      );
-                    },
-                    child: Text(context.strings.unregisterFromShift),
-                  ),
-                )
-              else if (shift.isFull)
-                Text(
-                  context.strings.shiftStaffFull,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[700],
-                    fontWeight: FontWeight.w500,
-                  ),
-                )
-              else
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.primaryOrange,
-                      foregroundColor: Colors.white,
-                    ),
-                    onPressed: () async {
-                      final err =
-                          await restaurantProvider.registerStaffForOpenShift(
-                        shiftId: shift.id,
-                        employeeId: employeeId,
-                      );
-                      if (!context.mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            err ?? context.strings.shiftRegisterSuccess,
-                          ),
-                          backgroundColor:
-                              err != null ? Colors.red : AppTheme.statusGreen,
-                        ),
-                      );
-                    },
-                    child: Text(context.strings.registerForShift),
-                  ),
-                ),
-            ],
             if (shift.notes != null && shift.notes!.isNotEmpty) ...[
               const SizedBox(height: 8),
               Container(
